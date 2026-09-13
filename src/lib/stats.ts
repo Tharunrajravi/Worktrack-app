@@ -1,5 +1,5 @@
 import type { WorkItem } from '../types/work';
-import { computeActiveMs } from './timer';
+import { computeWorkItemActiveMs } from './timer';
 
 export interface DayStat {
   date: string; // yyyy-mm-dd
@@ -45,7 +45,7 @@ export function computeWeekStats(items: WorkItem[], now: Date): DayStat[] {
     let learningSessions = 0;
 
     for (const item of dayItems) {
-      const activeMs = computeActiveMs(item.timer, now);
+      const activeMs = computeWorkItemActiveMs(item, now);
       if (item.category === 'Learning') {
         learningMs += activeMs;
         learningSessions += 1;

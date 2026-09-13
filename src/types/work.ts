@@ -51,6 +51,17 @@ export interface TimerState {
 
 export type DerivedTimerPhase = 'not_started' | 'running' | 'paused' | 'stopped';
 
+export interface WorkSession {
+  sessionId: string;
+  workItemId: string;
+  startedAt: string;
+  endedAt?: string;
+  intervals: TimerInterval[];
+  activeDuration: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface WorkItem {
   id: string; // internal unique id (uuid) — stable DB key
   workId: string; // human-readable WT-YYYYMMDD-NNN
@@ -70,7 +81,7 @@ export interface WorkItem {
 
   // --- Work Track fields (what actually happened) ---
   status: WorkStatus;
-  timer: TimerState;
+  sessions: WorkSession[];
   outcome?: string;
   notes?: string;
 

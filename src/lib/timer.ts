@@ -1,70 +1,53 @@
-// Pure timer logic. No React, no storage, no side effects — this is the
-// piece the spec explicitly calls out as needing tests, so it is kept
-// isolated and deterministic (every function takes "now" as a parameter
-// instead of calling Date.now() internally).
-//
-// RULE (from product spec): Time Spent = SUM(active work intervals),
-// NOT (End Time - Start Time). Paused periods must not count.
+import type { DerivedTimerPhase, TimerInterval, WorkItem, WorkSession } from '../types/work';
 
-import type { DerivedTimerPhase, TimerInterval, TimerState } from '../types/work';
-
-export function startTimer(timer: TimerState, now: Date): TimerState {
-  if (timer.stoppedAt) {
-    throw new Error('Cannot start a timer that has already been stopped.');
-  }
-  if (getPhase(timer) === 'running') {
-    return timer; // already running — no-op, avoid double-open intervals
-  }
+export function createWorkSession(workItemId: string, sessionId: string, now: Date): WorkSession {
   const nowIso = now.toISOString();
-  const newInterval: TimerInterval = { start: nowIso };
-  return {
-    ...timer,
-    firstStartedAt: timer.firstStartedAt ?? nowIso,
-    intervals: [...timer.intervals, newInterval],
-  };
+  return { sessionId, workItemId, startedAt: nowIso, intervals: [{ start: nowIso }], activeDuration: 0, createdAt: nowIso, updatedAt: nowIso };
 }
 
-export function pauseTimer(timer: TimerState, now: Date): TimerState {
-  const phase = getPhase(timer);
-  if (phase !== 'running') {
-    throw new Error(`Cannot pause a timer in phase "${phase}".`);
-  }
-  return { ...timer, intervals: closeLastInterval(timer.intervals, now) };
+export function pauseSession(session: WorkSession, now: Date): WorkSession {
+  if (getSessionPhase(session) !== 'running') throw new Error('Cannot pause a timer that is not running.');
+  return withDuration({ ...session, intervals: closeLastInterval(session.intervals, now), updatedAt: now.toISOString() }, now);
 }
 
-export function resumeTimer(timer: TimerState, now: Date): TimerState {
-  const phase = getPhase(timer);
-  if (phase !== 'paused') {
-    throw new Error(`Cannot resume a timer in phase "${phase}".`);
-  }
-  return { ...timer, intervals: [...timer.intervals, { start: now.toISOString() }] };
+export function resumeSession(session: WorkSession, now: Date): WorkSession {
+  if (getSessionPhase(session) !== 'paused') throw new Error('Cannot resume a timer that is not paused.');
+  return withDuration({ ...session, intervals: [...session.intervals, { start: now.toISOString() }], updatedAt: now.toISOString() }, now);
 }
 
-export function stopTimer(timer: TimerState, now: Date): TimerState {
-  const phase = getPhase(timer);
-  if (phase === 'not_started' || phase === 'stopped') {
-    throw new Error(`Cannot stop a timer in phase "${phase}".`);
-  }
-  const intervals = phase === 'running' ? closeLastInterval(timer.intervals, now) : timer.intervals;
-  return { ...timer, intervals, stoppedAt: now.toISOString() };
+export function stopSession(session: WorkSession, now: Date): WorkSession {
+  const phase = getSessionPhase(session);
+  if (phase === 'stopped') throw new Error('Cannot stop a timer that is already stopped.');
+  const intervals = phase === 'running' ? closeLastInterval(session.intervals, now) : session.intervals;
+  return withDuration({ ...session, intervals, endedAt: now.toISOString(), updatedAt: now.toISOString() }, now);
 }
 
-export function getPhase(timer: TimerState): DerivedTimerPhase {
-  if (timer.stoppedAt) return 'stopped';
-  if (timer.intervals.length === 0) return 'not_started';
-  const last = timer.intervals[timer.intervals.length - 1];
-  return last.end === undefined ? 'running' : 'paused';
+export function getSessionPhase(session: WorkSession): Exclude<DerivedTimerPhase, 'not_started'> {
+  if (session.endedAt) return 'stopped';
+  return session.intervals[session.intervals.length - 1].end === undefined ? 'running' : 'paused';
 }
 
-// The one rule everything else depends on: sum of closed interval
-// durations, plus (if currently running) the time since the open
-// interval's start up to `now`. Never derived from first-start/stop time.
-export function computeActiveMs(timer: TimerState, now: Date): number {
-  return timer.intervals.reduce((total, interval) => {
+export function computeSessionActiveMs(session: WorkSession, now: Date): number {
+  return session.intervals.reduce((total, interval) => {
     const start = new Date(interval.start).getTime();
     const end = interval.end ? new Date(interval.end).getTime() : now.getTime();
     return total + Math.max(0, end - start);
   }, 0);
+}
+
+export function computeWorkItemActiveMs(item: WorkItem, now: Date): number {
+  return item.sessions.reduce((total, session) => total + computeSessionActiveMs(session, now), 0);
+}
+
+export function getActiveSession(item: WorkItem): WorkSession | undefined {
+  return item.sessions.find((session) => {
+    const phase = getSessionPhase(session);
+    return phase === 'running' || phase === 'paused';
+  });
+}
+
+export function isResumable(item: WorkItem): boolean {
+  return item.status !== 'Completed' && !getActiveSession(item);
 }
 
 export function formatDuration(ms: number): string {
@@ -78,6 +61,9 @@ export function formatDuration(ms: number): string {
 
 function closeLastInterval(intervals: TimerInterval[], now: Date): TimerInterval[] {
   const last = intervals[intervals.length - 1];
-  const closed: TimerInterval = { ...last, end: now.toISOString() };
-  return [...intervals.slice(0, -1), closed];
+  return [...intervals.slice(0, -1), { ...last, end: now.toISOString() }];
+}
+
+function withDuration(session: WorkSession, now: Date): WorkSession {
+  return { ...session, activeDuration: computeSessionActiveMs(session, now) };
 }

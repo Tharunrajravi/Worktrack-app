@@ -1,12 +1,6 @@
-// Mock local persistence for Phase 1.
-//
-// ARCHITECTURE NOTE: every function here is async and returns Promises even
-// though localStorage is synchronous. That's deliberate — Phase 2 replaces
-// this module's internals with fetch() calls to API Gateway/Lambda, and
-// callers (React components) should not need to change at all when that
-// happens. Keep all localStorage access confined to this file.
-
-import type { WorkItem } from '../types/work';
+import { v4 as uuid } from 'uuid';
+import { computeSessionActiveMs } from './timer';
+import type { TimerState, WorkItem, WorkSession } from '../types/work';
 
 const ITEMS_KEY = 'worktrack_items_v1';
 
@@ -14,10 +8,31 @@ function readAll(): WorkItem[] {
   const raw = localStorage.getItem(ITEMS_KEY);
   if (!raw) return [];
   try {
-    return JSON.parse(raw) as WorkItem[];
+    const original = JSON.parse(raw) as Array<WorkItem & { timer?: TimerState }>;
+    const migrated = original.map(migrateWorkItem);
+    if (original.some((item) => !Array.isArray(item.sessions))) writeAll(migrated);
+    return migrated;
   } catch {
     return [];
   }
+}
+
+// Preserves V1 timer history as one session; it never discards tracked time.
+function migrateWorkItem(item: WorkItem & { timer?: TimerState }): WorkItem {
+  if (Array.isArray(item.sessions)) return item;
+  const { timer, ...withoutTimer } = item;
+  if (!timer?.intervals?.length) return { ...withoutTimer, sessions: [] };
+  const base: WorkSession = {
+    sessionId: `legacy-${item.id}-${uuid()}`,
+    workItemId: item.id,
+    startedAt: timer.firstStartedAt ?? timer.intervals[0].start,
+    endedAt: timer.stoppedAt,
+    intervals: timer.intervals,
+    activeDuration: 0,
+    createdAt: item.createdAt,
+    updatedAt: item.updatedAt,
+  };
+  return { ...withoutTimer, sessions: [{ ...base, activeDuration: computeSessionActiveMs(base, new Date()) }] };
 }
 
 function writeAll(items: WorkItem[]): void {
@@ -33,19 +48,14 @@ export async function getWorkItem(id: string): Promise<WorkItem | undefined> {
 }
 
 export async function getWorkIdsForDate(date: string): Promise<string[]> {
-  return readAll()
-    .filter((item) => item.date === date)
-    .map((item) => item.workId);
+  return readAll().filter((item) => item.date === date).map((item) => item.workId);
 }
 
 export async function saveWorkItem(item: WorkItem): Promise<WorkItem> {
   const items = readAll();
   const index = items.findIndex((existing) => existing.id === item.id);
-  if (index >= 0) {
-    items[index] = item;
-  } else {
-    items.push(item);
-  }
+  if (index >= 0) items[index] = item;
+  else items.push(item);
   writeAll(items);
   return item;
 }

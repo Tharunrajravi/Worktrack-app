@@ -27,6 +27,8 @@ describe('WorkTrack critical user journey', () => {
 
     // 3. Set Today's Work Plan (two buttons render it — header action and empty state)
     await user.click(screen.getAllByRole('button', { name: "Set Today's Work Plan" })[0]);
+    const chooser = await screen.findByRole('dialog', { name: "Set Today's Work Plan" });
+    await user.click(within(chooser).getByRole('button', { name: 'Create New Work Plan' }));
     const dialog = await screen.findByRole('dialog', { name: "Set Today's Work Plan" });
 
     await user.type(within(dialog).getByLabelText('Project *'), 'FiNoX');
@@ -52,12 +54,12 @@ describe('WorkTrack critical user journey', () => {
     expect(await screen.findByText('Running')).toBeInTheDocument();
 
     // 10. Stop works -> 12. Work Session Summary appears
-    await user.click(screen.getByRole('button', { name: 'Stop' }));
+    await user.click(screen.getByRole('button', { name: 'Stop Session' }));
     const summary = await screen.findByRole('dialog', { name: 'Work Session Summary' });
-    expect(within(summary).getByText('Active Time Spent')).toBeInTheDocument();
+    expect(within(summary).getByText('Total active time')).toBeInTheDocument();
 
     // 13. Status can be updated, then saved
-    await user.selectOptions(within(summary).getByLabelText('Status'), 'Completed');
+    await user.selectOptions(within(summary).getByLabelText('Work Item status'), 'Completed');
     await user.click(within(summary).getByRole('button', { name: 'Save & Close' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
 
@@ -80,4 +82,26 @@ describe('WorkTrack critical user journey', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Generate Report' }));
     expect(await within(dialog).findByText('No work records found for this date range.')).toBeInTheDocument();
   });
+  it('excludes completed items from continuation and resumes a Work Track row as a second session', async () => {
+    localStorage.setItem('worktrack_items_v1', JSON.stringify([
+      { id: 'resume-item', workId: 'WT-20260913-001', date: '2026-09-13', project: 'FiNoX', taskTitle: 'Continue me', description: 'Existing work', priority: 'Medium', technologies: [], links: [], status: 'In Progress', sessions: [{ sessionId: 'session-1', workItemId: 'resume-item', startedAt: '2026-09-13T10:00:00Z', endedAt: '2026-09-13T10:30:00Z', intervals: [{ start: '2026-09-13T10:00:00Z', end: '2026-09-13T10:30:00Z' }], activeDuration: 1800000, createdAt: '2026-09-13T10:00:00Z', updatedAt: '2026-09-13T10:30:00Z' }], createdAt: '2026-09-13T10:00:00Z', updatedAt: '2026-09-13T10:30:00Z' },
+      { id: 'completed-item', workId: 'WT-20260913-002', date: '2026-09-13', project: 'FiNoX', taskTitle: 'Do not continue', description: 'Done', priority: 'Medium', technologies: [], links: [], status: 'Completed', sessions: [], createdAt: '2026-09-13T10:00:00Z', updatedAt: '2026-09-13T10:00:00Z' }
+    ]));
+    const user = userEvent.setup();
+    render(<App />);
+    await user.type(screen.getByLabelText('Name'), 'Tharunraj');
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await user.click(await screen.findByRole('button', { name: "Set Today's Work Plan" }));
+    const chooser = await screen.findByRole('dialog', { name: "Set Today's Work Plan" });
+    expect(within(chooser).getByText('Continue me')).toBeInTheDocument();
+    expect(within(chooser).queryByText('Do not continue')).not.toBeInTheDocument();
+    await user.click(within(chooser).getByText('Continue me'));
+    expect(await screen.findByText('Session 2', { exact: false })).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Stop Session' }));
+    await user.click(within(await screen.findByRole('dialog', { name: 'Work Session Summary' })).getByRole('button', { name: 'Save & Close' }));
+    await user.click(screen.getByRole('link', { name: 'Work Track' }));
+    await user.click(await screen.findByText('Continue me'));
+    expect(await screen.findByText('Session 3', { exact: false })).toBeInTheDocument();
+  });
+
 });

@@ -7,7 +7,7 @@
 
 import * as XLSX from 'xlsx';
 import type { WorkItem } from '../types/work';
-import { computeActiveMs, formatDuration } from './timer';
+import { computeWorkItemActiveMs, formatDuration } from './timer';
 
 const EXPORT_COLUMNS = [
   'Work ID',
@@ -35,7 +35,7 @@ export function filterItemsByDateRange(items: WorkItem[], startDate: string, end
 }
 
 export function itemToRow(item: WorkItem, now: Date): string[] {
-  const activeMs = computeActiveMs(item.timer, now);
+  const activeMs = computeWorkItemActiveMs(item, now);
   return [
     item.workId,
     item.date,

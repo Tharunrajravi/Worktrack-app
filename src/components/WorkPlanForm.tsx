@@ -58,7 +58,7 @@ export default function WorkPlanForm({ workId, date, onCancel, onCreate }: Props
       ticketId: ticketId.trim() || undefined,
       links: links.filter((l) => l.type.trim() && l.url.trim()),
       status: 'Planned',
-      timer: { intervals: [] },
+      sessions: [],
       createdAt: now,
       updatedAt: now,
     };
