@@ -1,65 +1,190 @@
-import { v4 as uuid } from 'uuid';
-import { computeSessionActiveMs } from './timer';
-import type { TimerState, WorkItem, WorkSession } from '../types/work';
+import type {
+  TimerState,
+  WorkItem,
+  WorkSession,
+} from '../types/work';
 
-const ITEMS_KEY = 'worktrack_items_v1';
 
-function readAll(): WorkItem[] {
-  const raw = localStorage.getItem(ITEMS_KEY);
-  if (!raw) return [];
+// ============================================================
+// Local Storage
+//
+// This module is retained for compatibility with the original
+// frontend implementation.
+//
+// AWS is now the authoritative persistence layer for the
+// Work Track application.
+// ============================================================
+
+const WORK_ITEMS_KEY =
+  'worktrack.work-items';
+
+
+function readItems(): WorkItem[] {
+  const raw =
+    localStorage.getItem(
+      WORK_ITEMS_KEY,
+    );
+
+  if (!raw) {
+    return [];
+  }
+
   try {
-    const original = JSON.parse(raw) as Array<WorkItem & { timer?: TimerState }>;
-    const migrated = original.map(migrateWorkItem);
-    if (original.some((item) => !Array.isArray(item.sessions))) writeAll(migrated);
-    return migrated;
+    return JSON.parse(
+      raw,
+    ) as WorkItem[];
   } catch {
     return [];
   }
 }
 
-// Preserves V1 timer history as one session; it never discards tracked time.
-function migrateWorkItem(item: WorkItem & { timer?: TimerState }): WorkItem {
-  if (Array.isArray(item.sessions)) return item;
-  const { timer, ...withoutTimer } = item;
-  if (!timer?.intervals?.length) return { ...withoutTimer, sessions: [] };
-  const base: WorkSession = {
-    sessionId: `legacy-${item.id}-${uuid()}`,
-    workItemId: item.id,
-    startedAt: timer.firstStartedAt ?? timer.intervals[0].start,
-    endedAt: timer.stoppedAt,
-    intervals: timer.intervals,
-    activeDuration: 0,
-    createdAt: item.createdAt,
-    updatedAt: item.updatedAt,
+
+function writeItems(
+  items: WorkItem[],
+) {
+  localStorage.setItem(
+    WORK_ITEMS_KEY,
+    JSON.stringify(items),
+  );
+}
+
+
+// ============================================================
+// Work Items
+// ============================================================
+
+export async function listWorkItems(): Promise<
+  WorkItem[]
+> {
+  return readItems();
+}
+
+
+export async function saveWorkItem(
+  item: WorkItem,
+): Promise<void> {
+  const items =
+    readItems();
+
+  const existingIndex =
+    items.findIndex(
+      (current) =>
+        current.id === item.id,
+    );
+
+  if (
+    existingIndex === -1
+  ) {
+    writeItems([
+      ...items,
+      item,
+    ]);
+
+    return;
+  }
+
+  const updated =
+    [...items];
+
+  updated[
+    existingIndex
+  ] = item;
+
+  writeItems(updated);
+}
+
+
+export async function getWorkIdsForDate(
+  date: string,
+): Promise<string[]> {
+  return readItems()
+    .filter(
+      (item) =>
+        item.date === date,
+    )
+    .map(
+      (item) =>
+        item.workId,
+    );
+}
+
+
+// ============================================================
+// Legacy timer state helpers
+// ============================================================
+
+export function getTimerState(
+  item: WorkItem,
+): TimerState | null {
+  const session =
+    item.sessions[
+      item.sessions.length - 1
+    ];
+
+  if (!session) {
+    return null;
+  }
+
+  return {
+    intervals:
+      session.intervals,
+
+    firstStartedAt:
+      session.startedAt,
+
+    stoppedAt:
+      session.endedAt,
   };
-  return { ...withoutTimer, sessions: [{ ...base, activeDuration: computeSessionActiveMs(base, new Date()) }] };
 }
 
-function writeAll(items: WorkItem[]): void {
-  localStorage.setItem(ITEMS_KEY, JSON.stringify(items));
-}
 
-export async function listWorkItems(): Promise<WorkItem[]> {
-  return readAll().sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-}
+// ============================================================
+// Legacy session constructor
+//
+// The AWS-backed application should use apiStartSession()
+// instead. This exists so the old local implementation and
+// tests continue to compile.
+// ============================================================
 
-export async function getWorkItem(id: string): Promise<WorkItem | undefined> {
-  return readAll().find((item) => item.id === id);
-}
+export function createStoredSession(
+  workItemId: string,
+  sessionId: string,
+  now: Date,
+): WorkSession {
+  const nowIso =
+    now.toISOString();
 
-export async function getWorkIdsForDate(date: string): Promise<string[]> {
-  return readAll().filter((item) => item.date === date).map((item) => item.workId);
-}
+  return {
+    sessionId,
 
-export async function saveWorkItem(item: WorkItem): Promise<WorkItem> {
-  const items = readAll();
-  const index = items.findIndex((existing) => existing.id === item.id);
-  if (index >= 0) items[index] = item;
-  else items.push(item);
-  writeAll(items);
-  return item;
-}
+    workItemId,
 
-export async function deleteWorkItem(id: string): Promise<void> {
-  writeAll(readAll().filter((item) => item.id !== id));
+    startedAt:
+      nowIso,
+
+    endedAt:
+      undefined,
+
+    status:
+      'Active',
+
+    activeDuration:
+      0,
+
+    activeStartedAt:
+      nowIso,
+
+    intervals: [
+      {
+        start:
+          nowIso,
+      },
+    ],
+
+    createdAt:
+      nowIso,
+
+    updatedAt:
+      nowIso,
+  };
 }
