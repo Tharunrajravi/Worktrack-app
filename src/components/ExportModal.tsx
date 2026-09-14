@@ -1,4 +1,5 @@
-import { useId, useState } from 'react';
+import { useId, useRef, useState } from 'react';
+import { useModalAccessibility } from './useModalAccessibility';
 import type { WorkItem } from '../types/work';
 import { buildCsv, buildXlsxBlob, downloadBlob, exportFilename, filterItemsByDateRange } from '../lib/export';
 
@@ -17,28 +18,36 @@ export default function ExportModal({ items, defaultDate, onClose }: Props) {
   const [generated, setGenerated] = useState(false);
   const startId = useId();
   const endId = useId();
+  const generateRef = useRef<HTMLButtonElement>(null);
+  const dialogRef = useModalAccessibility(onClose, generateRef);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   const rangeValid = startDate <= endDate;
   const matches = rangeValid ? filterItemsByDateRange(items, startDate, endDate) : [];
 
   const handleGenerate = () => {
+    setExportError(null);
     if (!rangeValid || matches.length === 0) {
       setGenerated(true);
       return;
     }
     const now = new Date();
-    if (format === 'csv') {
-      const csv = buildCsv(matches, now);
-      downloadBlob(exportFilename(startDate, endDate, 'csv'), new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
-    } else {
-      downloadBlob(exportFilename(startDate, endDate, 'xlsx'), buildXlsxBlob(matches, now));
+    try {
+      if (format === 'csv') {
+        const csv = buildCsv(matches, now);
+        downloadBlob(exportFilename(startDate, endDate, 'csv'), new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
+      } else {
+        downloadBlob(exportFilename(startDate, endDate, 'xlsx'), buildXlsxBlob(matches, now));
+      }
+      setGenerated(true);
+    } catch {
+      setExportError('The report could not be generated. Please try again.');
     }
-    setGenerated(true);
   };
 
   return (
-    <div className="overlay overlay-center" role="dialog" aria-modal="true" aria-labelledby="export-title">
-      <div className="modal" style={{ width: 440 }}>
+    <div className="overlay overlay-center">
+      <div ref={dialogRef} className="modal modal-export" role="dialog" aria-modal="true" aria-labelledby="export-title" tabIndex={-1}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h2 id="export-title" style={{ fontSize: 18 }}>
             Export Work Tracking
@@ -92,6 +101,7 @@ export default function ExportModal({ items, defaultDate, onClose }: Props) {
         </div>
 
         <div style={{ marginTop: 18, minHeight: 20 }}>
+          {exportError && <div className="field-error" role="alert">{exportError}</div>}
           {!rangeValid && (
             <div className="field-error" role="alert">
               Start date must be on or before the end date.
@@ -113,7 +123,7 @@ export default function ExportModal({ items, defaultDate, onClose }: Props) {
           <button onClick={onClose} className="btn btn-secondary">
             Cancel
           </button>
-          <button onClick={handleGenerate} className="btn btn-primary" disabled={!rangeValid}>
+          <button ref={generateRef} onClick={handleGenerate} className="btn btn-primary" disabled={!rangeValid}>
             Generate Report
           </button>
         </div>

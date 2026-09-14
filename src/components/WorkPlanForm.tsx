@@ -1,4 +1,5 @@
-import { cloneElement, isValidElement, useId, useState, type ReactElement, type ReactNode } from 'react';
+import { cloneElement, isValidElement, useId, useRef, useState, type ReactElement, type ReactNode } from 'react';
+import { useModalAccessibility } from './useModalAccessibility';
 import { v4 as uuid } from 'uuid';
 import type { WorkCategory, WorkItem, WorkLink, WorkPriority } from '../types/work';
 import { WORK_CATEGORIES, WORK_PRIORITIES } from '../types/work';
@@ -22,6 +23,8 @@ export default function WorkPlanForm({ workId, date, onCancel, onCreate }: Props
   const [ticketId, setTicketId] = useState('');
   const [links, setLinks] = useState<WorkLink[]>([]);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const projectRef = useRef<HTMLInputElement>(null);
+  const dialogRef = useModalAccessibility(onCancel, projectRef);
 
   const addLink = () => setLinks((prev) => [...prev, { id: uuid(), type: '', url: '' }]);
   const updateLink = (id: string, field: 'type' | 'url', value: string) =>
@@ -66,8 +69,8 @@ export default function WorkPlanForm({ workId, date, onCancel, onCreate }: Props
   };
 
   return (
-    <div className="overlay" role="dialog" aria-modal="true" aria-labelledby="work-plan-title">
-      <div className="modal" style={{ width: 640 }}>
+    <div className="overlay">
+      <div ref={dialogRef} className="modal modal-work-plan" role="dialog" aria-modal="true" aria-labelledby="work-plan-title" tabIndex={-1}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h2 id="work-plan-title" style={{ fontSize: 18 }}>
             Set Today's Work Plan
@@ -179,7 +182,7 @@ export default function WorkPlanForm({ workId, date, onCancel, onCreate }: Props
           </div>
         ))}
 
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10, marginTop: 26 }}>
+        <div className="modal-footer">
           <button onClick={onCancel} className="btn btn-secondary">
             Cancel
           </button>

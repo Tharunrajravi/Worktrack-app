@@ -28,7 +28,7 @@ describe('WorkTrack critical user journey', () => {
     // 3. Set Today's Work Plan (two buttons render it — header action and empty state)
     await user.click(screen.getAllByRole('button', { name: "Set Today's Work Plan" })[0]);
     const chooser = await screen.findByRole('dialog', { name: "Set Today's Work Plan" });
-    await user.click(within(chooser).getByRole('button', { name: 'Create New Work Plan' }));
+    await user.click(within(chooser).getByRole('button', { name: /Create New Work Item/ }));
     const dialog = await screen.findByRole('dialog', { name: "Set Today's Work Plan" });
 
     await user.type(within(dialog).getByLabelText('Project *'), 'FiNoX');
@@ -41,7 +41,11 @@ describe('WorkTrack critical user journey', () => {
     expect(screen.getByText('Investigate flaky test')).toBeInTheDocument();
 
     // 5-7. Start works, timer runs
-    await user.click(screen.getByRole('button', { name: 'Start' }));
+    await user.click(
+      screen.getByRole('button', {
+        name: /Continue .* under Work ID/,
+      }),
+    );
     expect(await screen.findByText('Running')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Pause' })).toBeInTheDocument();
 
@@ -55,8 +59,9 @@ describe('WorkTrack critical user journey', () => {
 
     // 10. Stop works -> 12. Work Session Summary appears
     await user.click(screen.getByRole('button', { name: 'Stop Session' }));
-    const summary = await screen.findByRole('dialog', { name: 'Work Session Summary' });
-    expect(within(summary).getByText('Total active time')).toBeInTheDocument();
+    const summary = await screen.findByRole('dialog', { name: 'Session recorded' });
+    expect(within(summary).getByText('This session')).toBeInTheDocument();
+    expect(within(summary).getByText('Work Item total')).toBeInTheDocument();
 
     // 13. Status can be updated, then saved
     await user.selectOptions(within(summary).getByLabelText('Work Item status'), 'Completed');
@@ -65,8 +70,8 @@ describe('WorkTrack critical user journey', () => {
 
     // 14. Work item appears in Work Track
     await user.click(screen.getByRole('link', { name: 'Work Track' }));
-    expect(await screen.findByText('Investigate flaky test')).toBeInTheDocument();
-    expect(screen.getByText('Completed')).toBeInTheDocument();
+    expect((await screen.findAllByText('Investigate flaky test')).length).toBeGreaterThan(0);
+    expect((await screen.findAllByText('Completed')).length).toBeGreaterThan(0);
   });
 
   it('shows a clear empty state and a real generate flow in the export dialog', async () => {
@@ -91,16 +96,16 @@ describe('WorkTrack critical user journey', () => {
     render(<App />);
     await user.type(screen.getByLabelText('Name'), 'Tharunraj');
     await user.click(screen.getByRole('button', { name: 'Continue' }));
-    await user.click(await screen.findByRole('button', { name: "Set Today's Work Plan" }));
+    await user.click((await screen.findAllByRole('button', { name: "Set Today's Work Plan" }))[0]);
     const chooser = await screen.findByRole('dialog', { name: "Set Today's Work Plan" });
     expect(within(chooser).getByText('Continue me')).toBeInTheDocument();
     expect(within(chooser).queryByText('Do not continue')).not.toBeInTheDocument();
-    await user.click(within(chooser).getByText('Continue me'));
+    await user.click(within(chooser).getByRole('button', { name: /Continue Continue me/ }));
     expect(await screen.findByText('Session 2', { exact: false })).toBeInTheDocument();
     await user.click(screen.getByRole('button', { name: 'Stop Session' }));
-    await user.click(within(await screen.findByRole('dialog', { name: 'Work Session Summary' })).getByRole('button', { name: 'Save & Close' }));
+    await user.click(within(await screen.findByRole('dialog', { name: 'Session recorded' })).getByRole('button', { name: 'Save & Close' }));
     await user.click(screen.getByRole('link', { name: 'Work Track' }));
-    await user.click(await screen.findByText('Continue me'));
+    await user.click((await screen.findAllByRole('button', { name: /Continue Continue me/ }))[0]);
     expect(await screen.findByText('Session 3', { exact: false })).toBeInTheDocument();
   });
 
