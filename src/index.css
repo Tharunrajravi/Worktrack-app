@@ -575,3 +575,355 @@ a {
   .work-item-continue { grid-column: auto; grid-row: auto; width: 100%; min-height: 44px; }
   .work-item-metrics { grid-column: auto; }
 }
+
+/* ─────────────────────────────────────────────
+   WorkTrack Brand
+   ───────────────────────────────────────────── */
+
+.worktrack-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  color: #f0a83b;
+  line-height: 1;
+  user-select: none;
+}
+
+.worktrack-logo__wordmark {
+  color: #f5f1e8;
+  font-family: Inter, system-ui, sans-serif;
+  font-weight: 650;
+  letter-spacing: -0.045em;
+}
+
+.worktrack-logo svg {
+  display: block;
+}
+
+.worktrack-logo--sm {
+  gap: 7px;
+}
+
+.worktrack-logo--lg {
+  gap: 13px;
+}
+/* =========================================================
+   WorkTrack Visual System v2
+   Personal Work Operating System
+   ========================================================= */
+
+:root {
+  /* Brand */
+  --brand: #e3a15c;
+  --brand-strong: #f2b56f;
+  --brand-soft: rgba(227, 161, 92, 0.10);
+  --brand-glow: rgba(227, 161, 92, 0.16);
+  --brand-ink: #171008;
+
+  /* Environment */
+  --bg: #08090b;
+  --surface: #101216;
+  --surface-raised: #16191e;
+  --surface-hover: #1c2026;
+  --surface-active: #20252c;
+
+  /* Borders */
+  --border: #20242a;
+  --border-strong: #30353d;
+  --border-focus: rgba(227, 161, 92, 0.65);
+
+  /* Text */
+  --text: #f1f2f3;
+  --text-muted: #989da5;
+  --text-faint: #626873;
+
+  /* Semantic */
+  --status-running: #55d39a;
+  --status-running-bg: rgba(85, 211, 154, 0.10);
+  --status-paused: #e4b65c;
+  --status-paused-bg: rgba(228, 182, 92, 0.10);
+  --status-blocked: #ef7468;
+  --status-blocked-bg: rgba(239, 116, 104, 0.10);
+  --status-neutral: #989da5;
+  --status-neutral-bg: rgba(152, 157, 165, 0.08);
+
+  /* Typography */
+  --font-ui: 'Inter', system-ui, sans-serif;
+  --font-data: 'IBM Plex Mono', 'SFMono-Regular', monospace;
+
+  /* Shape */
+  --radius-sm: 6px;
+  --radius: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+
+  /* Depth */
+  --shadow-sm:
+    0 1px 2px rgba(0, 0, 0, 0.45);
+
+  --shadow-md:
+    0 12px 32px rgba(0, 0, 0, 0.38);
+
+  --shadow-lg:
+    0 24px 70px rgba(0, 0, 0, 0.48);
+
+  --shadow-brand:
+    0 0 0 1px rgba(227, 161, 92, 0.10),
+    0 10px 40px rgba(227, 161, 92, 0.08);
+
+  /* Motion */
+  --ease: cubic-bezier(0.2, 0.65, 0.25, 1);
+  --transition-fast: 150ms var(--ease);
+  --transition-normal: 220ms var(--ease);
+  --transition-slow: 360ms var(--ease);
+}
+
+/* Atmospheric application background */
+
+body {
+  background:
+    radial-gradient(
+      circle at 82% 8%,
+      rgba(227, 161, 92, 0.055),
+      transparent 28%
+    ),
+    radial-gradient(
+      circle at 15% 85%,
+      rgba(75, 201, 143, 0.025),
+      transparent 25%
+    ),
+    var(--bg);
+}
+
+/* Subtle technical grid */
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  opacity: 0.18;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.018) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.018) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+/* Premium text hierarchy */
+
+h1 {
+  font-size: clamp(28px, 3vw, 38px);
+  font-weight: 650;
+  letter-spacing: -0.045em;
+  line-height: 1.05;
+}
+
+h2 {
+  font-size: 20px;
+  font-weight: 620;
+  letter-spacing: -0.025em;
+}
+
+h3 {
+  font-size: 15px;
+  font-weight: 620;
+}
+
+/* Data should feel like system output */
+
+.mono {
+  font-family: var(--font-data);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.025em;
+}
+
+/* Selection */
+
+::selection {
+  background: rgba(227, 161, 92, 0.24);
+  color: var(--text);
+}
+/* =========================================================
+   AppShell — WorkTrack Command Center
+   ========================================================= */
+
+.app-shell {
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-shell-header {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.055);
+  background: rgba(8, 9, 11, 0.88);
+  backdrop-filter: blur(18px);
+}
+
+.app-shell-header::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(227, 161, 92, 0.18),
+    transparent
+  );
+  pointer-events: none;
+}
+
+.app-shell-header-inner {
+  width: min(1180px, calc(100% - 40px));
+  min-height: 68px;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 28px;
+}
+
+.app-shell-left {
+  display: flex;
+  align-items: center;
+  gap: 34px;
+  min-width: 0;
+}
+
+.app-shell-brand {
+  display: inline-flex;
+  text-decoration: none;
+  transition: opacity var(--transition-fast), transform var(--transition-fast);
+}
+
+.app-shell-brand:hover {
+  opacity: 0.92;
+  transform: translateY(-1px);
+}
+
+.app-shell-nav {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.app-shell-nav .nav-tab {
+  position: relative;
+  padding: 9px 13px;
+  border-radius: 8px;
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 550;
+}
+
+.app-shell-nav .nav-tab:hover {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.app-shell-nav .nav-tab-active {
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.055);
+}
+
+.app-shell-nav .nav-tab-active::after {
+  content: '';
+  position: absolute;
+  left: 13px;
+  right: 13px;
+  bottom: -1px;
+  height: 2px;
+  border-radius: 999px;
+  background: var(--brand);
+  box-shadow: 0 0 14px rgba(227, 161, 92, 0.35);
+}
+
+.app-shell-user {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.app-shell-user-status {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--status-running);
+  box-shadow: 0 0 10px rgba(85, 211, 154, 0.45);
+}
+
+.app-shell-user .app-nav-label {
+  color: var(--text-muted);
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.app-shell-user .btn {
+  margin-left: 5px;
+}
+
+/* Mobile */
+
+@media (max-width: 640px) {
+  .app-shell-header-inner {
+    width: min(100% - 24px, 1180px);
+    min-height: 62px;
+    gap: 14px;
+  }
+
+  .app-shell-left {
+    gap: 18px;
+  }
+
+  .app-shell-nav .nav-tab {
+    padding: 8px 9px;
+    font-size: 12px;
+  }
+
+  .app-shell-user-status,
+  .app-shell-user .app-nav-label {
+    display: none;
+  }
+
+  .app-shell-user .btn {
+    margin-left: 0;
+  }
+
+  .app-shell-main {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+}
+/* =========================================================
+   WorkTrack Layout Frame
+   ========================================================= */
+
+.app-shell-main {
+  width: min(1120px, calc(100% - 48px));
+  margin: 0 auto;
+  padding: 36px 0 64px;
+}
+
+@media (max-width: 640px) {
+  .app-shell-main {
+    width: calc(100% - 28px);
+    padding: 24px 0 48px;
+  }
+}
+html,
+body,
+#root {
+  width: 100%;
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+body {
+  min-height: 100vh;
+}
