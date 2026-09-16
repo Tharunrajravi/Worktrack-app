@@ -1,4 +1,12 @@
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
 import type { DayStat } from '../lib/stats';
 
 interface Props {
@@ -7,99 +15,371 @@ interface Props {
   onSelectDay: (date: string) => void;
 }
 
-export default function ProgressChart({ data, selectedDate, onSelectDay }: Props) {
-  const totalWork = round1(data.reduce((sum, d) => sum + d.workHours, 0));
-  const totalLearning = round1(data.reduce((sum, d) => sum + d.learningHours, 0));
-  const selected = data.find((d) => d.date === selectedDate) ?? null;
+export default function ProgressChart({
+  data,
+  selectedDate,
+  onSelectDay,
+}: Props) {
+  const totalWork = round1(
+    data.reduce((sum, day) => sum + day.workHours, 0),
+  );
+
+  const totalLearning = round1(
+    data.reduce((sum, day) => sum + day.learningHours, 0),
+  );
+
+  const totalCompleted = data.reduce(
+    (sum, day) => sum + day.completedTasks,
+    0,
+  );
+
+  const totalSessions = data.reduce(
+    (sum, day) => sum + day.learningSessions,
+    0,
+  );
+
+  const selected =
+    data.find((day) => day.date === selectedDate) ?? null;
+
+  const handleChartClick = (state: {
+    activeLabel?: string | number;
+  }) => {
+    const label = state?.activeLabel;
+
+    if (label === undefined) {
+      return;
+    }
+
+    const match = data.find(
+      (day) => day.label === String(label),
+    );
+
+    if (match) {
+      onSelectDay(match.date);
+    }
+  };
 
   return (
-    <div>
-      <div style={{ display: 'flex', gap: 32, marginBottom: 16 }}>
-        <HeadlineStat dotColor="var(--brand)" label="Work progress" value={`${totalWork}h`} sublabel="this week" />
-        <HeadlineStat dotColor="var(--status-running)" label="Learning progress" value={`${totalLearning}h`} sublabel="this week" />
-      </div>
+    <div className="progress-chart">
+      {/* Weekly overview */}
+      <div className="progress-overview">
+        <div className="progress-overview-copy">
+          <span className="eyebrow">WEEKLY ACTIVITY</span>
 
-      <ResponsiveContainer width="100%" height={160}>
-        <BarChart
-          data={data}
-          barGap={3}
-          margin={{ top: 4, right: 4, left: -20, bottom: 0 }}
-          onClick={(state) => {
-            const label = state?.activeLabel;
-            const match = data.find((d) => d.label === label);
-            if (match) onSelectDay(match.date);
-          }}
-        >
-          <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false} />
-          <XAxis dataKey="label" tick={{ fill: 'var(--text-faint)', fontSize: 11.5 }} axisLine={{ stroke: 'var(--border)' }} tickLine={false} />
-          <YAxis tick={{ fill: 'var(--text-faint)', fontSize: 11.5 }} axisLine={false} tickLine={false} width={28} />
-          <Tooltip
-            cursor={{ fill: 'var(--surface-hover)' }}
-            contentStyle={{
-              background: 'var(--surface-raised)',
-              border: '1px solid var(--border-strong)',
-              borderRadius: 8,
-              fontSize: 12,
-            }}
-            labelStyle={{ color: 'var(--text)' }}
-            formatter={(value, name) => [`${value}h`, name]}
+          <h3 className="progress-title">
+            Work &amp; learning rhythm
+          </h3>
+
+          <p className="progress-description">
+            A compact view of how your week is moving.
+            Select a day to inspect the details.
+          </p>
+        </div>
+
+        <div className="progress-summary">
+          <HeadlineStat
+            accent="brand"
+            label="Work"
+            value={`${totalWork}h`}
           />
-          <Bar dataKey="workHours" name="Work" fill="var(--brand)" radius={[3, 3, 0, 0]} cursor="pointer" maxBarSize={20} />
-          <Bar dataKey="learningHours" name="Learning" fill="var(--status-running)" radius={[3, 3, 0, 0]} cursor="pointer" maxBarSize={20} />
-        </BarChart>
-      </ResponsiveContainer>
 
-      {selected && <DayDetail day={selected} />}
-    </div>
-  );
-}
+          <HeadlineStat
+            accent="learning"
+            label="Learning"
+            value={`${totalLearning}h`}
+          />
 
-function round1(n: number): number {
-  return Math.round(n * 10) / 10;
-}
-
-function HeadlineStat({ label, value, sublabel, dotColor }: { label: string; value: string; sublabel: string; dotColor: string }) {
-  return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text-muted)' }}>
-        <span style={{ width: 6, height: 6, borderRadius: '50%', background: dotColor }} aria-hidden />
-        {label}
+          <HeadlineStat
+            accent="neutral"
+            label="Completed"
+            value={String(totalCompleted)}
+          />
+        </div>
       </div>
-      <div className="mono" style={{ fontSize: 22, fontWeight: 600, marginTop: 2 }}>
-        {value} <span style={{ fontFamily: 'var(--font-ui)', fontSize: 12, fontWeight: 400, color: 'var(--text-faint)' }}>{sublabel}</span>
+
+      {/* Chart */}
+      <div className="progress-chart-frame">
+        <div className="progress-chart-legend">
+          <span className="progress-legend-item">
+            <span
+              className="progress-legend-dot progress-legend-work"
+              aria-hidden="true"
+            />
+            Work
+          </span>
+
+          <span className="progress-legend-item">
+            <span
+              className="progress-legend-dot progress-legend-learning"
+              aria-hidden="true"
+            />
+            Learning
+          </span>
+
+          <span className="progress-chart-hint">
+            Select a day
+          </span>
+        </div>
+
+        <ResponsiveContainer
+          width="100%"
+          height={220}
+        >
+          <BarChart
+            data={data}
+            barGap={5}
+            barCategoryGap="28%"
+            margin={{
+              top: 10,
+              right: 8,
+              left: -20,
+              bottom: 4,
+            }}
+            onClick={handleChartClick}
+          >
+            <CartesianGrid
+              strokeDasharray="2 5"
+              stroke="var(--border)"
+              vertical={false}
+            />
+
+            <XAxis
+              dataKey="label"
+              tick={{
+                fill: 'var(--text-muted)',
+                fontSize: 11,
+              }}
+              axisLine={{
+                stroke: 'var(--border)',
+              }}
+              tickLine={false}
+              tickMargin={10}
+            />
+
+            <YAxis
+              tick={{
+                fill: 'var(--text-faint)',
+                fontSize: 10,
+              }}
+              axisLine={false}
+              tickLine={false}
+              width={30}
+              tickFormatter={(value) => `${value}h`}
+            />
+
+            <Tooltip
+              cursor={{
+                fill: 'var(--surface-hover)',
+              }}
+              contentStyle={{
+                background:
+                  'var(--surface-raised)',
+                border:
+                  '1px solid var(--border-strong)',
+                borderRadius: 10,
+                boxShadow:
+                  'var(--shadow-md)',
+                fontSize: 12,
+                padding: '10px 12px',
+              }}
+              labelStyle={{
+                color: 'var(--text)',
+                fontWeight: 600,
+                marginBottom: 5,
+              }}
+              itemStyle={{
+                color: 'var(--text-muted)',
+              }}
+              formatter={(
+                value,
+                name,
+              ) => [
+                `${Number(value).toFixed(1)}h`,
+                name,
+              ]}
+            />
+
+            <Bar
+              dataKey="workHours"
+              name="Work"
+              fill="var(--brand)"
+              radius={[4, 4, 1, 1]}
+              cursor="pointer"
+              maxBarSize={18}
+              opacity={0.95}
+            />
+
+            <Bar
+              dataKey="learningHours"
+              name="Learning"
+              fill="var(--status-running)"
+              radius={[4, 4, 1, 1]}
+              cursor="pointer"
+              maxBarSize={18}
+              opacity={0.9}
+            />
+          </BarChart>
+        </ResponsiveContainer>
+
+        {data.length === 0 && (
+          <div className="progress-chart-empty">
+            <span className="eyebrow">
+              NO ACTIVITY
+            </span>
+
+            <span>
+              Your weekly activity will appear here
+              once you start tracking work.
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Selected day */}
+      {selected ? (
+        <DayDetail day={selected} />
+      ) : (
+        <div className="progress-selection-hint">
+          <span className="progress-selection-line" />
+          <span>
+            Select a day to see its breakdown
+          </span>
+          <span className="progress-selection-line" />
+        </div>
+      )}
+
+      {/* Small weekly footer */}
+      <div className="progress-footer">
+        <span>
+          {totalSessions} learning session
+          {totalSessions === 1 ? '' : 's'}
+        </span>
+
+        <span className="progress-footer-separator">
+          /
+        </span>
+
+        <span>
+          {totalCompleted} completed task
+          {totalCompleted === 1 ? '' : 's'}
+        </span>
       </div>
     </div>
   );
 }
 
-function DayDetail({ day }: { day: DayStat }) {
+function HeadlineStat({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: string;
+  accent: 'brand' | 'learning' | 'neutral';
+}) {
   return (
-    <div
-      className="panel"
-      style={{
-        marginTop: 14,
-        padding: '12px 14px',
-        background: 'var(--surface-raised)',
-        display: 'grid',
-        gridTemplateColumns: 'repeat(4, 1fr)',
-        gap: 12,
-      }}
-    >
-      <Stat label="Work hours" value={`${day.workHours}h`} />
-      <Stat label="Completed tasks" value={String(day.completedTasks)} />
-      <Stat label="Learning time" value={`${day.learningHours}h`} />
-      <Stat label="Learning sessions" value={String(day.learningSessions)} />
-    </div>
-  );
-}
+    <div className="progress-headline-stat">
+      <div className="progress-headline-label">
+        <span
+          className={`progress-stat-dot progress-stat-dot-${accent}`}
+          aria-hidden="true"
+        />
 
-function Stat({ label, value }: { label: string; value: string }) {
-  return (
-    <div>
-      <div style={{ fontSize: 11, color: 'var(--text-faint)' }}>{label}</div>
-      <div className="mono" style={{ fontSize: 15, fontWeight: 600, marginTop: 2 }}>
+        <span>{label}</span>
+      </div>
+
+      <div className="progress-headline-value mono">
         {value}
       </div>
     </div>
   );
+}
+
+function DayDetail({
+  day,
+}: {
+  day: DayStat;
+}) {
+  const formattedDate = new Date(
+    `${day.date}T00:00:00`,
+  ).toLocaleDateString(undefined, {
+    weekday: 'long',
+    month: 'short',
+    day: 'numeric',
+  });
+
+  return (
+    <div className="progress-day-detail">
+      <div className="progress-day-detail-header">
+        <div>
+          <span className="eyebrow">
+            SELECTED DAY
+          </span>
+
+          <h4>{formattedDate}</h4>
+        </div>
+
+        <span className="progress-day-date mono">
+          {day.date}
+        </span>
+      </div>
+
+      <div className="progress-day-metrics">
+        <DayMetric
+          label="Work hours"
+          value={`${round1(day.workHours)}h`}
+          accent="brand"
+        />
+
+        <DayMetric
+          label="Completed tasks"
+          value={String(day.completedTasks)}
+          accent="neutral"
+        />
+
+        <DayMetric
+          label="Learning time"
+          value={`${round1(day.learningHours)}h`}
+          accent="learning"
+        />
+
+        <DayMetric
+          label="Learning sessions"
+          value={String(day.learningSessions)}
+          accent="neutral"
+        />
+      </div>
+    </div>
+  );
+}
+
+function DayMetric({
+  label,
+  value,
+  accent,
+}: {
+  label: string;
+  value: string;
+  accent: 'brand' | 'learning' | 'neutral';
+}) {
+  return (
+    <div className="progress-day-metric">
+      <div className="progress-day-metric-top">
+        <span
+          className={`progress-metric-marker progress-metric-marker-${accent}`}
+          aria-hidden="true"
+        />
+
+        <span>{label}</span>
+      </div>
+
+      <div className="progress-day-metric-value mono">
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function round1(value: number): number {
+  return Math.round(value * 10) / 10;
 }
