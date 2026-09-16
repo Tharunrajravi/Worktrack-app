@@ -495,3 +495,24 @@ export async function apiGetWeeklyDashboard(
     `/dashboard/weekly?${params.toString()}`,
   );
 }
+
+export interface ExportWorkItemsResponse {
+  fileName: string;
+  downloadUrl: string;
+  expiresIn: number;
+  rowCount: number;
+}
+
+export async function apiExportWorkItems(
+  startDate: string,
+  endDate: string,
+): Promise<ExportWorkItemsResponse> {
+  const params = new URLSearchParams({
+    startDate,
+    endDate,
+  });
+
+  return request<ExportWorkItemsResponse>(
+    `/work-items/export?${params.toString()}`,
+  );
+}

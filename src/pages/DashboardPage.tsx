@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+﻿import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 
 import { useAuth } from '../auth/AuthContext';
@@ -14,7 +14,7 @@ import { useModalAccessibility } from '../components/useModalAccessibility';
 
 import {
   apiCreateWorkItem,
-  apiListWorkItems,
+  apiGetWeeklyDashboard,apiListWorkItems,
   apiPauseSession,
   apiResumeSession,
   apiStartSession,
@@ -28,7 +28,11 @@ import {
 } from '../lib/timer';
 
 import {
-  computeWeekStats,
+  getCurrentWeekDates,
+} from '../lib/stats';
+
+import type {
+  DayStat,
 } from '../lib/stats';
 
 import type {
@@ -200,14 +204,68 @@ export default function DashboardPage() {
     ).length;
 
 
-  const weekStats = useMemo(
-    () =>
-      computeWeekStats(
-        items,
-        new Date(),
-      ),
-    [items],
-  );
+  const [weekStats, setWeekStats] =
+    useState<DayStat[]>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadWeeklyDashboard = async () => {
+      try {
+        const weekDates =
+          getCurrentWeekDates(new Date());
+
+        const dashboard =
+          await apiGetWeeklyDashboard(
+            weekDates[0],
+            weekDates[weekDates.length - 1],
+          );
+
+        if (cancelled) {
+          return;
+        }
+
+        const formattedDays: DayStat[] =
+          dashboard.days.map(
+            (day) => ({
+              date: day.date,
+              label:
+                new Date(
+                  `${day.date}T00:00:00`,
+                ).toLocaleDateString(
+                  undefined,
+                  {
+                    weekday: 'short',
+                  },
+                ),
+              workHours:
+                day.workHours,
+              learningHours:
+                day.learningTime,
+              completedTasks:
+                day.completedTasks,
+              learningSessions:
+                day.learningSessions,
+            }),
+          );
+
+        setWeekStats(
+          formattedDays,
+        );
+      } catch (err) {
+        console.error(
+          'Failed to load weekly dashboard:',
+          err,
+        );
+      }
+    };
+
+    void loadWeeklyDashboard();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
 
   // ============================================================
@@ -679,7 +737,7 @@ export default function DashboardPage() {
             {todayItems.length >
               0 && (
               <>
-                {' · '}
+                {' Â· '}
                 {completedToday}
                 /
                 {todayItems.length}
@@ -941,7 +999,6 @@ export default function DashboardPage() {
 
       {showExport && (
         <ExportModal
-          items={items}
           defaultDate={today}
           onClose={() =>
             setShowExport(
@@ -1030,7 +1087,7 @@ function WorkPlanChooser({
             className="btn btn-ghost btn-icon"
             aria-label="Close work planning"
           >
-            ×
+            Ã—
           </button>
         </div>
 
@@ -1160,3 +1217,4 @@ function ErrorNotice({
     </div>
   );
 }
+
