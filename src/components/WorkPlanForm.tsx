@@ -402,6 +402,7 @@ export default function WorkPlanForm({
           }}
         >
           <Field
+          id="project"
             label="Project"
             required
             error={
@@ -409,6 +410,7 @@ export default function WorkPlanForm({
             }
           >
             <input
+              id="project"
               ref={projectRef}
               className={`input ${
                 errors.project
@@ -431,10 +433,12 @@ export default function WorkPlanForm({
 
 
           <Field
+          id="client"
             label="Client"
             hint="optional"
           >
             <input
+              id="client"
               className="input"
               value={client}
               onChange={(
@@ -452,10 +456,12 @@ export default function WorkPlanForm({
 
 
           <Field
+          id="environment"
             label="Environment"
             hint="optional"
           >
             <input
+              id="environment"
               className="input"
               value={
                 environment
@@ -475,10 +481,12 @@ export default function WorkPlanForm({
 
 
           <Field
+          id="category"
             label="Category"
             hint="optional"
           >
             <select
+              id="category"
               className="select"
               value={category}
               onChange={(
@@ -526,6 +534,7 @@ export default function WorkPlanForm({
 
 
         <Field
+        id="task-title"
           label="Task Title"
           required
           error={
@@ -533,6 +542,7 @@ export default function WorkPlanForm({
           }
         >
           <input
+            id="task-title"
             className={`input ${
               errors.taskTitle
                 ? 'input-invalid'
@@ -557,6 +567,7 @@ export default function WorkPlanForm({
 
 
         <Field
+        id="description"
           label="Description"
           required
           error={
@@ -564,6 +575,7 @@ export default function WorkPlanForm({
           }
         >
           <textarea
+            id="description"
             className={`textarea ${
               errors.description
                 ? 'input-invalid'
@@ -610,6 +622,7 @@ export default function WorkPlanForm({
           }}
         >
           <Field
+            id="priority"
             label="Priority"
             required
           >
@@ -648,6 +661,7 @@ export default function WorkPlanForm({
 
 
           <Field
+            id="ticket-incident-id"
             label="Ticket / Incident ID"
             hint="optional"
           >
@@ -673,6 +687,7 @@ export default function WorkPlanForm({
 
 
         <Field
+          id="technologies"
           label="Technologies"
           hint="optional, comma-separated"
         >
@@ -876,12 +891,14 @@ export default function WorkPlanForm({
 // ============================================================
 
 function Field({
+  id,
   label,
   hint,
   required = false,
   error,
   children,
 }: {
+  id: string;
   label: string;
   hint?: string;
   required?: boolean;
@@ -895,7 +912,10 @@ function Field({
           12,
       }}
     >
-      <div className="field-label">
+      <label
+        htmlFor={id}
+        className="field-label"
+      >
         {label}
 
         {required && (
@@ -918,7 +938,7 @@ function Field({
             · {hint}
           </span>
         )}
-      </div>
+      </label>
 
 
       {children}

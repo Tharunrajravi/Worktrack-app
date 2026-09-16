@@ -75,6 +75,19 @@ function greeting(): string {
 }
 
 
+function formatCompactDuration(milliseconds: number): string {
+  const totalMinutes = Math.floor(milliseconds / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`;
+  }
+
+  return `${minutes}m`;
+}
+
+
 export default function DashboardPage() {
   const { user } = useAuth();
 
@@ -202,6 +215,18 @@ export default function DashboardPage() {
         item.status ===
         'Completed',
     ).length;
+
+
+  const todayActiveMs = todayItems.reduce(
+    (total, item) =>
+      total +
+      item.sessions.reduce(
+        (sessionTotal, session) =>
+          sessionTotal + (session.activeDuration ?? 0),
+        0,
+      ),
+    0,
+  );
 
 
   const [weekStats, setWeekStats] =
@@ -709,73 +734,59 @@ export default function DashboardPage() {
 
   return (
     <div>
-      <header className="page-header dashboard-header">
-        <div>
+      <header className="dashboard-hero">
+        <div className="dashboard-hero-copy">
+          <div className="dashboard-kicker">
+            <span className="dashboard-kicker-dot" aria-hidden="true" />
+            PERSONAL WORK OS
+          </div>
+
           <h1>
             {greeting()}
-            {user
-              ? `, ${user.displayName}`
-              : ''}
+            {user ? `, ${user.displayName}` : ''}
           </h1>
 
-
           <p>
-            {new Date().toLocaleDateString(
-              undefined,
-              {
-                weekday:
-                  'long',
-                year:
-                  'numeric',
-                month:
-                  'long',
-                day:
-                  'numeric',
-              },
-            )}
+            {new Date().toLocaleDateString(undefined, {
+              weekday: 'long',
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric',
+            })}
 
-            {todayItems.length >
-              0 && (
+            {todayItems.length > 0 && (
               <>
-                {' Â· '}
-                {completedToday}
-                /
-                {todayItems.length}
-                {' completed today'}
+                {' · '}
+                {completedToday}/{todayItems.length} completed
               </>
             )}
           </p>
-        </div>
 
+          <div className="dashboard-hero-subtitle">
+            Your work, tracked with intent.
+          </div>
+        </div>
 
         <div className="dashboard-header-actions">
           <button
             type="button"
-            onClick={() =>
-              setShowChooser(
-                true,
-              )
-            }
-            className="btn btn-primary"
+            onClick={() => setShowChooser(true)}
+            className="btn btn-primary dashboard-primary-action"
           >
+            <span aria-hidden="true">+</span>
             Set Today's Work Plan
           </button>
 
-
           <button
             type="button"
-            onClick={() =>
-              setShowExport(
-                true,
-              )
-            }
+            aria-label="Export Work Tracking"
+            onClick={() => setShowExport(true)}
             className="btn btn-secondary"
           >
-            Export Work Tracking
+            Export
           </button>
         </div>
       </header>
-
 
       {error && (
         <ErrorNotice
@@ -785,43 +796,88 @@ export default function DashboardPage() {
       )}
 
 
-      {/* ======================================================
-          Active Session
-      ====================================================== */}
-
       {activeItem && (
-        <section className="dashboard-section dashboard-active">
+        <section className="dashboard-section dashboard-active-section">
           <div className="section-heading">
-            Active Session
+            <span>Active Session</span>
+            <span className="section-live">
+              <span className="section-live-dot" aria-hidden="true" />
+              LIVE
+            </span>
           </div>
 
+          <div className="dashboard-active-layout">
+            <div className="active-session-frame">
+              <div className="active-session-frame-top">
+                <span className="eyebrow">CURRENT SESSION</span>
+                <span className="active-session-id mono">
+                  {activeItem.workId}
+                </span>
+              </div>
 
-          <TimerCard
-            item={activeItem}
+              <TimerCard
+                item={activeItem}
+                onPause={() =>
+                  void updateActive(activeItem, 'pause')
+                }
+                onResume={() =>
+                  void updateActive(activeItem, 'resume')
+                }
+                onStop={() =>
+                  void handleStop(activeItem)
+                }
+              />
+            </div>
 
-            onPause={() =>
-              void updateActive(
-                activeItem,
-                'pause',
-              )
-            }
+            <div className="today-glance">
+              <div className="today-glance-header">
+                <span className="eyebrow">TODAY AT A GLANCE</span>
+                <span className="today-glance-date mono">
+                  {todayItems.length.toString().padStart(2, '0')} ITEMS
+                </span>
+              </div>
 
-            onResume={() =>
-              void updateActive(
-                activeItem,
-                'resume',
-              )
-            }
+              <div className="glance-metrics">
+                <div className="glance-metric">
+                  <span className="glance-metric-value mono">
+                    {todayItems.length}
+                  </span>
+                  <span className="glance-metric-label">
+                    Work items
+                  </span>
+                </div>
 
-            onStop={() =>
-              void handleStop(
-                activeItem,
-              )
-            }
-          />
+                <div className="glance-metric">
+                  <span className="glance-metric-value mono">
+                    {formatCompactDuration(todayActiveMs)}
+                  </span>
+                  <span className="glance-metric-label">
+                    Active time
+                  </span>
+                </div>
+
+                <div className="glance-metric">
+                  <span className="glance-metric-value mono">
+                    {completedToday}
+                  </span>
+                  <span className="glance-metric-label">
+                    Completed
+                  </span>
+                </div>
+              </div>
+
+              <div className="glance-footer">
+                <span>
+                  {activeItem.taskTitle}
+                </span>
+                <span className="glance-footer-indicator">
+                  Session in progress
+                </span>
+              </div>
+            </div>
+          </div>
         </section>
       )}
-
 
       {/* ======================================================
           Today's Work
