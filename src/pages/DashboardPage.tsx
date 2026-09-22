@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation } from 'react-router-dom';
 
 import { useAuth } from '../auth/AuthContext';
@@ -14,7 +14,8 @@ import { useModalAccessibility } from '../components/useModalAccessibility';
 
 import {
   apiCreateWorkItem,
-  apiGetWeeklyDashboard,apiListWorkItems,
+  apiGetWeeklyDashboard,
+  apiListWorkItems,
   apiPauseSession,
   apiResumeSession,
   apiStartSession,
@@ -23,6 +24,7 @@ import {
 } from '../lib/api';
 
 import {
+  computeWorkItemActiveMs,
   getActiveSession,
   isResumable,
 } from '../lib/timer';
@@ -49,6 +51,10 @@ const rank: Record<WorkStatus, number> = {
 };
 
 
+// ============================================================
+// Date helpers
+// ============================================================
+
 function todayIso(): string {
   const d = new Date();
 
@@ -56,6 +62,27 @@ function todayIso(): string {
     d.getMonth() + 1,
   ).padStart(2, '0')}-${String(
     d.getDate(),
+  ).padStart(2, '0')}`;
+}
+
+
+function isoDateFromTimestamp(
+  timestamp?: string,
+): string | null {
+  if (!timestamp) {
+    return null;
+  }
+
+  const date = new Date(timestamp);
+
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  return `${date.getFullYear()}-${String(
+    date.getMonth() + 1,
+  ).padStart(2, '0')}-${String(
+    date.getDate(),
   ).padStart(2, '0')}`;
 }
 
@@ -75,16 +102,55 @@ function greeting(): string {
 }
 
 
-function formatCompactDuration(milliseconds: number): string {
-  const totalMinutes = Math.floor(milliseconds / 60000);
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
+// ============================================================
+// Duration formatting
+// ============================================================
+
+function formatCompactDuration(
+  milliseconds: number,
+): string {
+  const safeMs = Math.max(
+    0,
+    milliseconds,
+  );
+
+  const totalMinutes = Math.floor(
+    safeMs / 60000,
+  );
+
+  const hours = Math.floor(
+    totalMinutes / 60,
+  );
+
+  const minutes =
+    totalMinutes % 60;
 
   if (hours > 0) {
     return `${hours}h ${minutes}m`;
   }
 
   return `${minutes}m`;
+}
+
+
+// ============================================================
+// Determine whether an item had activity today
+// ============================================================
+
+function hasActivityToday(
+  item: WorkItem,
+  today: string,
+): boolean {
+  if (item.date === today) {
+    return true;
+  }
+
+  return item.sessions.some(
+    (session) =>
+      isoDateFromTimestamp(
+        session.startedAt,
+      ) === today,
+  );
 }
 
 
@@ -119,6 +185,9 @@ export default function DashboardPage() {
 
   const [creatingWorkItem, setCreatingWorkItem] =
     useState(false);
+
+  const [weekStats, setWeekStats] =
+    useState<DayStat[]>([]);
 
 
   // ============================================================
@@ -157,34 +226,256 @@ export default function DashboardPage() {
 
 
   // ============================================================
+  // Weekly dashboard loader
+  // ============================================================
+
+  const loadWeeklyDashboard =
+    async () => {
+      try {
+        const weekDates =
+          getCurrentWeekDates(
+            new Date(),
+          );
+
+        const dashboard =
+          await apiGetWeeklyDashboard(
+            weekDates[0],
+            weekDates[
+              weekDates.length - 1
+            ],
+          );
+
+        const formattedDays:
+          DayStat[] =
+          dashboard.days.map(
+            (day) => ({
+              date: day.date,
+
+              label:
+                new Date(
+                  `${day.date}T00:00:00`,
+                ).toLocaleDateString(
+                  undefined,
+                  {
+                    weekday: 'short',
+                  },
+                ),
+
+              workHours:
+                day.workHours,
+
+              learningHours:
+                day.learningTime,
+
+              completedTasks:
+                day.completedTasks,
+
+              learningSessions:
+                day.learningSessions,
+            }),
+          );
+
+        setWeekStats(
+          formattedDays,
+        );
+      } catch (err) {
+        console.error(
+          'Failed to load weekly dashboard:',
+          err,
+        );
+      }
+    };
+
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const load = async () => {
+      try {
+        const weekDates =
+          getCurrentWeekDates(
+            new Date(),
+          );
+
+        const dashboard =
+          await apiGetWeeklyDashboard(
+            weekDates[0],
+            weekDates[
+              weekDates.length - 1
+            ],
+          );
+
+        if (cancelled) {
+          return;
+        }
+
+        const formattedDays:
+          DayStat[] =
+          dashboard.days.map(
+            (day) => ({
+              date: day.date,
+
+              label:
+                new Date(
+                  `${day.date}T00:00:00`,
+                ).toLocaleDateString(
+                  undefined,
+                  {
+                    weekday: 'short',
+                  },
+                ),
+
+              workHours:
+                day.workHours,
+
+              learningHours:
+                day.learningTime,
+
+              completedTasks:
+                day.completedTasks,
+
+              learningSessions:
+                day.learningSessions,
+            }),
+          );
+
+        setWeekStats(
+          formattedDays,
+        );
+      } catch (err) {
+        console.error(
+          'Failed to load weekly dashboard:',
+          err,
+        );
+      }
+    };
+
+    void load();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+
+  // ============================================================
   // Derived state
   // ============================================================
 
   const today = todayIso();
 
 
-  const activeItem = items.find(
-    (item) =>
-      getActiveSession(item),
-  );
-
-
-  const todayItems = useMemo(
-    () =>
-      items
-        .filter(
-          (item) =>
-            item.date === today,
-        )
-        .sort(
-          (a, b) =>
-            a.createdAt.localeCompare(
-              b.createdAt,
-            ),
+  const activeItem =
+    items.find(
+      (item) =>
+        Boolean(
+          getActiveSession(item),
         ),
-    [items, today],
-  );
+    ) ?? null;
 
+
+  // ------------------------------------------------------------
+  // Work planned specifically for today
+  // ------------------------------------------------------------
+
+  const plannedTodayItems =
+    useMemo(
+      () =>
+        items
+          .filter(
+            (item) =>
+              item.date === today,
+          )
+          .sort(
+            (a, b) =>
+              a.createdAt.localeCompare(
+                b.createdAt,
+              ),
+          ),
+      [items, today],
+    );
+
+
+  // ------------------------------------------------------------
+  // Items that actually had activity today
+  //
+  // This includes older Work Items when they have a session
+  // that started today.
+  // ------------------------------------------------------------
+
+  const todayActivityItems =
+    useMemo(
+      () =>
+        items
+          .filter(
+            (item) =>
+              hasActivityToday(
+                item,
+                today,
+              ),
+          )
+          .sort(
+            (a, b) =>
+              b.updatedAt.localeCompare(
+                a.updatedAt,
+              ),
+          ),
+      [items, today],
+    );
+
+
+  // ------------------------------------------------------------
+  // Items shown in Today's Work
+  //
+  // If an older Work Item is actively being worked today,
+  // show it rather than displaying "No work planned yet."
+  // ------------------------------------------------------------
+
+  const todayItems =
+    useMemo(() => {
+      const byId =
+        new Map<
+          string,
+          WorkItem
+        >();
+
+      for (
+        const item of plannedTodayItems
+      ) {
+        byId.set(
+          item.workId,
+          item,
+        );
+      }
+
+      for (
+        const item of todayActivityItems
+      ) {
+        byId.set(
+          item.workId,
+          item,
+        );
+      }
+
+      return Array.from(
+        byId.values(),
+      ).sort(
+        (a, b) =>
+          rank[a.status] -
+            rank[b.status] ||
+          b.updatedAt.localeCompare(
+            a.updatedAt,
+          ),
+      );
+    }, [
+      plannedTodayItems,
+      todayActivityItems,
+    ]);
+
+
+  // ------------------------------------------------------------
+  // Resumable Work Items
+  // ------------------------------------------------------------
 
   const resumable = useMemo(
     () =>
@@ -209,88 +500,39 @@ export default function DashboardPage() {
     ) ?? null;
 
 
+  // ------------------------------------------------------------
+  // Completed today
+  //
+  // For now this is based on today's displayed activity.
+  // Backend weekly statistics use completion/update date.
+  // ------------------------------------------------------------
+
   const completedToday =
-    todayItems.filter(
+    todayActivityItems.filter(
       (item) =>
         item.status ===
         'Completed',
     ).length;
 
 
-  const todayActiveMs = todayItems.reduce(
-    (total, item) =>
-      total +
-      item.sessions.reduce(
-        (sessionTotal, session) =>
-          sessionTotal + (session.activeDuration ?? 0),
-        0,
-      ),
-    0,
-  );
+  // ------------------------------------------------------------
+  // Today's active time
+  //
+  // IMPORTANT:
+  // computeWorkItemActiveMs() includes the currently running
+  // portion of an active session.
+  // ------------------------------------------------------------
 
-
-  const [weekStats, setWeekStats] =
-    useState<DayStat[]>([]);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    const loadWeeklyDashboard = async () => {
-      try {
-        const weekDates =
-          getCurrentWeekDates(new Date());
-
-        const dashboard =
-          await apiGetWeeklyDashboard(
-            weekDates[0],
-            weekDates[weekDates.length - 1],
-          );
-
-        if (cancelled) {
-          return;
-        }
-
-        const formattedDays: DayStat[] =
-          dashboard.days.map(
-            (day) => ({
-              date: day.date,
-              label:
-                new Date(
-                  `${day.date}T00:00:00`,
-                ).toLocaleDateString(
-                  undefined,
-                  {
-                    weekday: 'short',
-                  },
-                ),
-              workHours:
-                day.workHours,
-              learningHours:
-                day.learningTime,
-              completedTasks:
-                day.completedTasks,
-              learningSessions:
-                day.learningSessions,
-            }),
-          );
-
-        setWeekStats(
-          formattedDays,
-        );
-      } catch (err) {
-        console.error(
-          'Failed to load weekly dashboard:',
-          err,
-        );
-      }
-    };
-
-    void loadWeeklyDashboard();
-
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const todayActiveMs =
+    todayActivityItems.reduce(
+      (total, item) =>
+        total +
+        computeWorkItemActiveMs(
+          item,
+          new Date(),
+        ),
+      0,
+    );
 
 
   // ============================================================
@@ -318,10 +560,9 @@ export default function DashboardPage() {
           },
         );
 
-
-      const merged: WorkItem = {
+      const merged:
+        WorkItem = {
         ...item,
-
         ...saved,
 
         id:
@@ -333,7 +574,6 @@ export default function DashboardPage() {
           item.sessions,
       };
 
-
       setItems(
         (previous) =>
           previous.map(
@@ -344,7 +584,6 @@ export default function DashboardPage() {
                 : current,
           ),
       );
-
 
       return true;
     } catch (err) {
@@ -366,13 +605,6 @@ export default function DashboardPage() {
 
   // ============================================================
   // CREATE NEW WORK ITEM
-  //
-  // IMPORTANT:
-  // Do NOT generate Work ID here.
-  //
-  // Lambda/DynamoDB generates:
-  // WT-YYYYMMDD-NNN
-  // atomically.
   // ============================================================
 
   const openNewPlan = () => {
@@ -388,27 +620,18 @@ export default function DashboardPage() {
     async (
       draft: WorkItem,
     ) => {
-      setCreatingWorkItem(true);
+      setCreatingWorkItem(
+        true,
+      );
 
       setError(null);
 
       try {
-        /*
-         * This calls:
-         *
-         * POST /work-items
-         *
-         * Lambda generates the real Work ID.
-         */
         const created =
           await apiCreateWorkItem(
             draft,
           );
 
-
-        /*
-         * Add the AWS-created Work Item to the current UI.
-         */
         setItems(
           (previous) => [
             created,
@@ -416,16 +639,13 @@ export default function DashboardPage() {
           ],
         );
 
-
         setShowPlanForm(
           false,
         );
 
-
-        /*
-         * Clear any previous error.
-         */
         setError(null);
+
+        await loadWeeklyDashboard();
       } catch (err) {
         console.error(
           'Failed to create Work Item:',
@@ -453,9 +673,6 @@ export default function DashboardPage() {
     async (
       item: WorkItem,
     ) => {
-      /*
-       * Only one active session at a time in V1.
-       */
       if (
         activeItem &&
         activeItem.workId !==
@@ -464,32 +681,22 @@ export default function DashboardPage() {
         return;
       }
 
-
-      /*
-       * Don't create a second active session.
-       */
       if (
         getActiveSession(item)
       ) {
         return;
       }
 
-
       setError(null);
 
-
       try {
-        /*
-         * POST
-         * /work-items/{workId}/sessions
-         */
         const session =
           await apiStartSession(
             item.workId,
           );
 
-
-        const updated: WorkItem = {
+        const updated:
+          WorkItem = {
           ...item,
 
           status:
@@ -504,7 +711,6 @@ export default function DashboardPage() {
             new Date().toISOString(),
         };
 
-
         setItems(
           (previous) =>
             previous.map(
@@ -516,10 +722,11 @@ export default function DashboardPage() {
             ),
         );
 
-
         setShowChooser(
           false,
         );
+
+        await loadWeeklyDashboard();
       } catch (err) {
         console.error(
           'Failed to start Work Session:',
@@ -545,10 +752,8 @@ export default function DashboardPage() {
         continueItemId?: string;
       } | null;
 
-
     const continueItemId =
       state?.continueItemId;
-
 
     if (
       !continueItemId ||
@@ -556,7 +761,6 @@ export default function DashboardPage() {
     ) {
       return;
     }
-
 
     const item =
       items.find(
@@ -566,7 +770,6 @@ export default function DashboardPage() {
           candidate.workId ===
             continueItemId,
       );
-
 
     if (
       item &&
@@ -578,7 +781,6 @@ export default function DashboardPage() {
       );
     }
 
-
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     items.length,
@@ -587,7 +789,7 @@ export default function DashboardPage() {
 
 
   // ============================================================
-  // Pause / Resume / Stop
+  // PAUSE / RESUME / STOP
   // ============================================================
 
   const updateActive =
@@ -601,18 +803,14 @@ export default function DashboardPage() {
       const active =
         getActiveSession(item);
 
-
       if (!active) {
         return false;
       }
 
-
       setError(null);
-
 
       try {
         let updatedSession;
-
 
         if (
           action === 'pause'
@@ -638,7 +836,6 @@ export default function DashboardPage() {
             );
         }
 
-
         const updatedItem:
           WorkItem = {
           ...item,
@@ -652,12 +849,6 @@ export default function DashboardPage() {
                   : session,
             ),
 
-          /*
-           * Stop ends the SESSION.
-           *
-           * It does not automatically complete
-           * the Work Item.
-           */
           status:
             action === 'stop'
               ? item.status
@@ -666,7 +857,6 @@ export default function DashboardPage() {
           updatedAt:
             new Date().toISOString(),
         };
-
 
         setItems(
           (previous) =>
@@ -679,6 +869,8 @@ export default function DashboardPage() {
             ),
         );
 
+        // Refresh weekly statistics after every session change.
+        await loadWeeklyDashboard();
 
         return true;
       } catch (err) {
@@ -708,7 +900,6 @@ export default function DashboardPage() {
           'stop',
         );
 
-
       if (saved) {
         setSummaryItemId(
           item.id,
@@ -737,27 +928,43 @@ export default function DashboardPage() {
       <header className="dashboard-hero">
         <div className="dashboard-hero-copy">
           <div className="dashboard-kicker">
-            <span className="dashboard-kicker-dot" aria-hidden="true" />
+            <span
+              className="dashboard-kicker-dot"
+              aria-hidden="true"
+            />
+
             PERSONAL WORK OS
           </div>
 
           <h1>
             {greeting()}
-            {user ? `, ${user.displayName}` : ''}
+            {user
+              ? `, ${user.displayName}`
+              : ''}
           </h1>
 
           <p>
-            {new Date().toLocaleDateString(undefined, {
-              weekday: 'long',
-              year: 'numeric',
-              month: 'long',
-              day: 'numeric',
-            })}
+            {new Date().toLocaleDateString(
+              undefined,
+              {
+                weekday:
+                  'long',
+                year:
+                  'numeric',
+                month:
+                  'long',
+                day:
+                  'numeric',
+              },
+            )}
 
-            {todayItems.length > 0 && (
+            {todayActivityItems.length >
+              0 && (
               <>
                 {' · '}
-                {completedToday}/{todayItems.length} completed
+                {completedToday}/
+                {todayActivityItems.length}
+                {' completed'}
               </>
             )}
           </p>
@@ -767,26 +974,35 @@ export default function DashboardPage() {
           </div>
         </div>
 
+
         <div className="dashboard-header-actions">
           <button
             type="button"
-            onClick={() => setShowChooser(true)}
+            onClick={() =>
+              setShowChooser(true)
+            }
             className="btn btn-primary dashboard-primary-action"
           >
-            <span aria-hidden="true">+</span>
+            <span aria-hidden="true">
+              +
+            </span>
+
             Set Today's Work Plan
           </button>
 
           <button
             type="button"
             aria-label="Export Work Tracking"
-            onClick={() => setShowExport(true)}
+            onClick={() =>
+              setShowExport(true)
+            }
             className="btn btn-secondary"
           >
             Export
           </button>
         </div>
       </header>
+
 
       {error && (
         <ErrorNotice
@@ -796,20 +1012,35 @@ export default function DashboardPage() {
       )}
 
 
+      {/* ======================================================
+          Active Session
+      ====================================================== */}
+
       {activeItem && (
         <section className="dashboard-section dashboard-active-section">
           <div className="section-heading">
-            <span>Active Session</span>
+            <span>
+              Active Session
+            </span>
+
             <span className="section-live">
-              <span className="section-live-dot" aria-hidden="true" />
+              <span
+                className="section-live-dot"
+                aria-hidden="true"
+              />
+
               LIVE
             </span>
           </div>
 
+
           <div className="dashboard-active-layout">
             <div className="active-session-frame">
               <div className="active-session-frame-top">
-                <span className="eyebrow">CURRENT SESSION</span>
+                <span className="eyebrow">
+                  CURRENT SESSION
+                </span>
+
                 <span className="active-session-id mono">
                   {activeItem.workId}
                 </span>
@@ -818,58 +1049,83 @@ export default function DashboardPage() {
               <TimerCard
                 item={activeItem}
                 onPause={() =>
-                  void updateActive(activeItem, 'pause')
+                  void updateActive(
+                    activeItem,
+                    'pause',
+                  )
                 }
                 onResume={() =>
-                  void updateActive(activeItem, 'resume')
+                  void updateActive(
+                    activeItem,
+                    'resume',
+                  )
                 }
                 onStop={() =>
-                  void handleStop(activeItem)
+                  void handleStop(
+                    activeItem,
+                  )
                 }
               />
             </div>
 
+
             <div className="today-glance">
               <div className="today-glance-header">
-                <span className="eyebrow">TODAY AT A GLANCE</span>
+                <span className="eyebrow">
+                  TODAY AT A GLANCE
+                </span>
+
                 <span className="today-glance-date mono">
-                  {todayItems.length.toString().padStart(2, '0')} ITEMS
+                  {todayActivityItems.length
+                    .toString()
+                    .padStart(2, '0')}{' '}
+                  ITEMS
                 </span>
               </div>
+
 
               <div className="glance-metrics">
                 <div className="glance-metric">
                   <span className="glance-metric-value mono">
-                    {todayItems.length}
+                    {todayActivityItems.length}
                   </span>
+
                   <span className="glance-metric-label">
                     Work items
                   </span>
                 </div>
 
+
                 <div className="glance-metric">
                   <span className="glance-metric-value mono">
-                    {formatCompactDuration(todayActiveMs)}
+                    {formatCompactDuration(
+                      todayActiveMs,
+                    )}
                   </span>
+
                   <span className="glance-metric-label">
                     Active time
                   </span>
                 </div>
 
+
                 <div className="glance-metric">
                   <span className="glance-metric-value mono">
                     {completedToday}
                   </span>
+
                   <span className="glance-metric-label">
                     Completed
                   </span>
                 </div>
               </div>
 
+
               <div className="glance-footer">
                 <span>
                   {activeItem.taskTitle}
                 </span>
+
                 <span className="glance-footer-indicator">
                   Session in progress
                 </span>
@@ -878,6 +1134,7 @@ export default function DashboardPage() {
           </div>
         </section>
       )}
+
 
       {/* ======================================================
           Today's Work
@@ -889,20 +1146,16 @@ export default function DashboardPage() {
         </div>
 
 
-        {todayItems.length ===
-        0 ? (
+        {todayItems.length === 0 ? (
           <div className="empty-state">
             <div>
               No work planned yet.
             </div>
 
-
             <button
               type="button"
               onClick={() =>
-                setShowChooser(
-                  true,
-                )
+                setShowChooser(true)
               }
               className="btn btn-primary"
             >
@@ -945,7 +1198,6 @@ export default function DashboardPage() {
           This Week
         </div>
 
-
         <div className="panel chart-panel">
           <ProgressChart
             data={weekStats}
@@ -972,9 +1224,7 @@ export default function DashboardPage() {
           )}
 
           onClose={() =>
-            setShowChooser(
-              false,
-            )
+            setShowChooser(false)
           }
 
           onCreate={
@@ -994,12 +1244,6 @@ export default function DashboardPage() {
 
       {showPlanForm && (
         <WorkPlanForm
-          /*
-           * IMPORTANT:
-           * There is intentionally NO generated Work ID here.
-           *
-           * AWS assigns the real ID when the form is submitted.
-           */
           date={today}
 
           onCancel={() => {
@@ -1057,9 +1301,7 @@ export default function DashboardPage() {
         <ExportModal
           defaultDate={today}
           onClose={() =>
-            setShowExport(
-              false,
-            )
+            setShowExport(false)
           }
         />
       )}
@@ -1090,19 +1332,16 @@ function WorkPlanChooser({
   const [query, setQuery] =
     useState('');
 
-
   const createRef =
     useRef<HTMLButtonElement>(
       null,
     );
-
 
   const dialogRef =
     useModalAccessibility(
       onClose,
       createRef,
     );
-
 
   const matches =
     items.filter(
@@ -1113,7 +1352,6 @@ function WorkPlanChooser({
             query.toLowerCase(),
           ),
     );
-
 
   return (
     <div className="overlay overlay-center">
@@ -1136,14 +1374,13 @@ function WorkPlanChooser({
             </h2>
           </div>
 
-
           <button
             type="button"
             onClick={onClose}
             className="btn btn-ghost btn-icon"
             aria-label="Close work planning"
           >
-            Ã—
+            ×
           </button>
         </div>
 
@@ -1175,7 +1412,6 @@ function WorkPlanChooser({
             </span>
           </button>
 
-
           <div className="chooser-route-label">
             Continue Previous Work
           </div>
@@ -1194,7 +1430,6 @@ function WorkPlanChooser({
         >
           Search resumable work
         </label>
-
 
         <input
           id="resumable-search"
@@ -1260,7 +1495,6 @@ function ErrorNotice({
         {message}
       </span>
 
-
       <button
         type="button"
         className="btn btn-secondary btn-sm"
@@ -1273,4 +1507,3 @@ function ErrorNotice({
     </div>
   );
 }
-
