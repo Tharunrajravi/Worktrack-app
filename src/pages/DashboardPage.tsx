@@ -1,4 +1,9 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useLocation } from 'react-router-dom';
 
 import { useAuth } from '../auth/AuthContext';
@@ -24,7 +29,7 @@ import {
 } from '../lib/api';
 
 import {
-  computeWorkItemActiveMs,
+  computeSessionActiveMs,
   getActiveSession,
   isResumable,
 } from '../lib/timer';
@@ -39,9 +44,14 @@ import type {
 
 import type {
   WorkItem,
+  WorkSession,
   WorkStatus,
 } from '../types/work';
 
+
+// ============================================================
+// Status ranking
+// ============================================================
 
 const rank: Record<WorkStatus, number> = {
   'In Progress': 0,
@@ -86,6 +96,10 @@ function isoDateFromTimestamp(
   ).padStart(2, '0')}`;
 }
 
+
+// ============================================================
+// Greeting
+// ============================================================
 
 function greeting(): string {
   const hour = new Date().getHours();
@@ -154,6 +168,59 @@ function hasActivityToday(
 }
 
 
+// ============================================================
+// Calculate only today's active session time
+//
+// This intentionally does NOT use the complete Work Item total.
+// Historical sessions must not be included in today's metric.
+//
+// computeSessionActiveMs() also includes the currently running
+// portion of an active session, so the dashboard can update live.
+// ============================================================
+
+function computeTodayActiveMs(
+  items: WorkItem[],
+  today: string,
+  now: Date,
+): number {
+  return items.reduce(
+    (itemTotal, item) => {
+      return (
+        itemTotal +
+        item.sessions.reduce(
+          (
+            sessionTotal,
+            session,
+          ) => {
+            if (
+              isoDateFromTimestamp(
+                session.startedAt,
+              ) !== today
+            ) {
+              return sessionTotal;
+            }
+
+            return (
+              sessionTotal +
+              computeSessionActiveMs(
+                session,
+                now,
+              )
+            );
+          },
+          0,
+        )
+      );
+    },
+    0,
+  );
+}
+
+
+// ============================================================
+// Dashboard
+// ============================================================
+
 export default function DashboardPage() {
   const { user } = useAuth();
 
@@ -188,6 +255,19 @@ export default function DashboardPage() {
 
   const [weekStats, setWeekStats] =
     useState<DayStat[]>([]);
+
+  // ------------------------------------------------------------
+  // IMPORTANT:
+  // This forces DashboardPage to re-render every second while
+  // a session is active.
+  //
+  // TimerCard already has its own timer, but that timer belongs
+  // only to TimerCard. Today At A Glance is rendered by this
+  // parent component, so the parent needs its own live tick.
+  // ------------------------------------------------------------
+
+  const [now, setNow] =
+    useState<Date>(() => new Date());
 
 
   // ============================================================
@@ -226,6 +306,24 @@ export default function DashboardPage() {
 
 
   // ============================================================
+  // Live dashboard clock
+  // ============================================================
+
+  useEffect(() => {
+    const intervalId =
+      window.setInterval(() => {
+        setNow(new Date());
+      }, 1000);
+
+    return () => {
+      window.clearInterval(
+        intervalId,
+      );
+    };
+  }, []);
+
+
+  // ============================================================
   // Weekly dashboard loader
   // ============================================================
 
@@ -257,7 +355,8 @@ export default function DashboardPage() {
                 ).toLocaleDateString(
                   undefined,
                   {
-                    weekday: 'short',
+                    weekday:
+                      'short',
                   },
                 ),
 
@@ -321,7 +420,8 @@ export default function DashboardPage() {
                 ).toLocaleDateString(
                   undefined,
                   {
-                    weekday: 'short',
+                    weekday:
+                      'short',
                   },
                 ),
 
@@ -365,6 +465,10 @@ export default function DashboardPage() {
   const today = todayIso();
 
 
+  // ------------------------------------------------------------
+  // Currently active session
+  // ------------------------------------------------------------
+
   const activeItem =
     items.find(
       (item) =>
@@ -375,7 +479,7 @@ export default function DashboardPage() {
 
 
   // ------------------------------------------------------------
-  // Work planned specifically for today
+  // Work items planned specifically for today
   // ------------------------------------------------------------
 
   const plannedTodayItems =
@@ -397,10 +501,19 @@ export default function DashboardPage() {
 
 
   // ------------------------------------------------------------
-  // Items that actually had activity today
+  // Work items that actually had activity today
   //
-  // This includes older Work Items when they have a session
-  // that started today.
+  // This is the important distinction:
+  //
+  // A Work Item can have:
+  //
+  // item.date = September 14
+  //
+  // but:
+  //
+  // session.startedAt = September 25
+  //
+  // In that case it still belongs in today's activity.
   // ------------------------------------------------------------
 
   const todayActivityItems =
@@ -425,10 +538,14 @@ export default function DashboardPage() {
 
 
   // ------------------------------------------------------------
-  // Items shown in Today's Work
+  // Combined Today's Work list
   //
-  // If an older Work Item is actively being worked today,
-  // show it rather than displaying "No work planned yet."
+  // Includes:
+  //
+  // 1. Items planned today
+  // 2. Older items that were actually worked on today
+  //
+  // Map by Work ID prevents duplicates.
   // ------------------------------------------------------------
 
   const todayItems =
@@ -493,6 +610,10 @@ export default function DashboardPage() {
   );
 
 
+  // ------------------------------------------------------------
+  // Session summary item
+  // ------------------------------------------------------------
+
   const summaryItem =
     items.find(
       (item) =>
@@ -503,12 +624,12 @@ export default function DashboardPage() {
   // ------------------------------------------------------------
   // Completed today
   //
-  // For now this is based on today's displayed activity.
-  // Backend weekly statistics use completion/update date.
+  // Use the combined Today's Work collection so a Work Item
+  // planned today can count even if it has no session.
   // ------------------------------------------------------------
 
   const completedToday =
-    todayActivityItems.filter(
+    todayItems.filter(
       (item) =>
         item.status ===
         'Completed',
@@ -519,19 +640,26 @@ export default function DashboardPage() {
   // Today's active time
   //
   // IMPORTANT:
-  // computeWorkItemActiveMs() includes the currently running
-  // portion of an active session.
+  //
+  // Only today's sessions are counted.
+  //
+  // The current "now" value changes every second, so this
+  // number updates while the session is running.
   // ------------------------------------------------------------
 
   const todayActiveMs =
-    todayActivityItems.reduce(
-      (total, item) =>
-        total +
-        computeWorkItemActiveMs(
-          item,
-          new Date(),
+    useMemo(
+      () =>
+        computeTodayActiveMs(
+          todayActivityItems,
+          today,
+          now,
         ),
-      0,
+      [
+        todayActivityItems,
+        today,
+        now,
+      ],
     );
 
 
@@ -673,6 +801,7 @@ export default function DashboardPage() {
     async (
       item: WorkItem,
     ) => {
+      // Only one active session at a time.
       if (
         activeItem &&
         activeItem.workId !==
@@ -681,6 +810,8 @@ export default function DashboardPage() {
         return;
       }
 
+      // Never create a second active session
+      // for the same Work Item.
       if (
         getActiveSession(item)
       ) {
@@ -810,7 +941,8 @@ export default function DashboardPage() {
       setError(null);
 
       try {
-        let updatedSession;
+        let updatedSession:
+          WorkSession;
 
         if (
           action === 'pause'
@@ -849,6 +981,8 @@ export default function DashboardPage() {
                   : session,
             ),
 
+          // Stopping the session does NOT automatically
+          // complete the Work Item.
           status:
             action === 'stop'
               ? item.status
@@ -869,8 +1003,11 @@ export default function DashboardPage() {
             ),
         );
 
-        // Refresh weekly statistics after every session change.
+        // Refresh weekly statistics after session changes.
         await loadWeeklyDashboard();
+
+        // Immediately refresh the live clock state.
+        setNow(new Date());
 
         return true;
       } catch (err) {
@@ -889,6 +1026,10 @@ export default function DashboardPage() {
       }
     };
 
+
+  // ============================================================
+  // STOP SESSION
+  // ============================================================
 
   const handleStop =
     async (
@@ -925,8 +1066,15 @@ export default function DashboardPage() {
 
   return (
     <div>
+
+      {/* ======================================================
+          Dashboard Header
+      ====================================================== */}
+
       <header className="dashboard-hero">
+
         <div className="dashboard-hero-copy">
+
           <div className="dashboard-kicker">
             <span
               className="dashboard-kicker-dot"
@@ -963,7 +1111,7 @@ export default function DashboardPage() {
               <>
                 {' · '}
                 {completedToday}/
-                {todayActivityItems.length}
+                {todayItems.length}
                 {' completed'}
               </>
             )}
@@ -972,10 +1120,12 @@ export default function DashboardPage() {
           <div className="dashboard-hero-subtitle">
             Your work, tracked with intent.
           </div>
+
         </div>
 
 
         <div className="dashboard-header-actions">
+
           <button
             type="button"
             onClick={() =>
@@ -990,6 +1140,7 @@ export default function DashboardPage() {
             Set Today's Work Plan
           </button>
 
+
           <button
             type="button"
             aria-label="Export Work Tracking"
@@ -1000,9 +1151,15 @@ export default function DashboardPage() {
           >
             Export
           </button>
+
         </div>
+
       </header>
 
+
+      {/* ======================================================
+          Error
+      ====================================================== */}
 
       {error && (
         <ErrorNotice
@@ -1018,25 +1175,37 @@ export default function DashboardPage() {
 
       {activeItem && (
         <section className="dashboard-section dashboard-active-section">
+
           <div className="section-heading">
+
             <span>
               Active Session
             </span>
 
             <span className="section-live">
+
               <span
                 className="section-live-dot"
                 aria-hidden="true"
               />
 
               LIVE
+
             </span>
+
           </div>
 
 
           <div className="dashboard-active-layout">
+
+            {/* ==================================================
+                Current Session
+            ================================================== */}
+
             <div className="active-session-frame">
+
               <div className="active-session-frame-top">
+
                 <span className="eyebrow">
                   CURRENT SESSION
                 </span>
@@ -1044,33 +1213,45 @@ export default function DashboardPage() {
                 <span className="active-session-id mono">
                   {activeItem.workId}
                 </span>
+
               </div>
+
 
               <TimerCard
                 item={activeItem}
+
                 onPause={() =>
                   void updateActive(
                     activeItem,
                     'pause',
                   )
                 }
+
                 onResume={() =>
                   void updateActive(
                     activeItem,
                     'resume',
                   )
                 }
+
                 onStop={() =>
                   void handleStop(
                     activeItem,
                   )
                 }
               />
+
             </div>
 
 
+            {/* ==================================================
+                TODAY AT A GLANCE
+            ================================================== */}
+
             <div className="today-glance">
+
               <div className="today-glance-header">
+
                 <span className="eyebrow">
                   TODAY AT A GLANCE
                 </span>
@@ -1081,11 +1262,16 @@ export default function DashboardPage() {
                     .padStart(2, '0')}{' '}
                   ITEMS
                 </span>
+
               </div>
 
 
               <div className="glance-metrics">
+
+                {/* Work items */}
+
                 <div className="glance-metric">
+
                   <span className="glance-metric-value mono">
                     {todayActivityItems.length}
                   </span>
@@ -1093,10 +1279,14 @@ export default function DashboardPage() {
                   <span className="glance-metric-label">
                     Work items
                   </span>
+
                 </div>
 
 
+                {/* Active time */}
+
                 <div className="glance-metric">
+
                   <span className="glance-metric-value mono">
                     {formatCompactDuration(
                       todayActiveMs,
@@ -1106,10 +1296,14 @@ export default function DashboardPage() {
                   <span className="glance-metric-label">
                     Active time
                   </span>
+
                 </div>
 
 
+                {/* Completed */}
+
                 <div className="glance-metric">
+
                   <span className="glance-metric-value mono">
                     {completedToday}
                   </span>
@@ -1117,11 +1311,14 @@ export default function DashboardPage() {
                   <span className="glance-metric-label">
                     Completed
                   </span>
+
                 </div>
+
               </div>
 
 
               <div className="glance-footer">
+
                 <span>
                   {activeItem.taskTitle}
                 </span>
@@ -1129,9 +1326,13 @@ export default function DashboardPage() {
                 <span className="glance-footer-indicator">
                   Session in progress
                 </span>
+
               </div>
+
             </div>
+
           </div>
+
         </section>
       )}
 
@@ -1141,13 +1342,16 @@ export default function DashboardPage() {
       ====================================================== */}
 
       <section className="dashboard-section">
+
         <div className="section-heading">
           Today's Work
         </div>
 
 
         {todayItems.length === 0 ? (
+
           <div className="empty-state">
+
             <div>
               No work planned yet.
             </div>
@@ -1161,9 +1365,13 @@ export default function DashboardPage() {
             >
               Set Today's Work Plan
             </button>
+
           </div>
+
         ) : (
+
           <div className="work-item-list">
+
             {todayItems.map(
               (item) => (
                 <WorkItemRow
@@ -1184,8 +1392,11 @@ export default function DashboardPage() {
                 />
               ),
             )}
+
           </div>
+
         )}
+
       </section>
 
 
@@ -1194,21 +1405,27 @@ export default function DashboardPage() {
       ====================================================== */}
 
       <section className="dashboard-section">
+
         <div className="section-heading">
           This Week
         </div>
 
         <div className="panel chart-panel">
+
           <ProgressChart
             data={weekStats}
+
             selectedDate={
               selectedChartDate
             }
+
             onSelectDay={
               setSelectedChartDate
             }
           />
+
         </div>
+
       </section>
 
 
@@ -1219,6 +1436,7 @@ export default function DashboardPage() {
       {showChooser && (
         <WorkPlanChooser
           items={resumable}
+
           active={Boolean(
             activeItem,
           )}
@@ -1300,11 +1518,13 @@ export default function DashboardPage() {
       {showExport && (
         <ExportModal
           defaultDate={today}
+
           onClose={() =>
             setShowExport(false)
           }
         />
       )}
+
     </div>
   );
 }
@@ -1343,6 +1563,7 @@ function WorkPlanChooser({
       createRef,
     );
 
+
   const matches =
     items.filter(
       (item) =>
@@ -1353,8 +1574,10 @@ function WorkPlanChooser({
           ),
     );
 
+
   return (
     <div className="overlay overlay-center">
+
       <div
         ref={dialogRef}
         className="modal modal-chooser"
@@ -1363,8 +1586,11 @@ function WorkPlanChooser({
         aria-labelledby="work-choice-title"
         tabIndex={-1}
       >
+
         <div className="modal-header">
+
           <div>
+
             <p className="eyebrow">
               Work planning
             </p>
@@ -1372,7 +1598,9 @@ function WorkPlanChooser({
             <h2 id="work-choice-title">
               Set Today's Work Plan
             </h2>
+
           </div>
+
 
           <button
             type="button"
@@ -1382,16 +1610,19 @@ function WorkPlanChooser({
           >
             ×
           </button>
+
         </div>
 
 
         <div className="chooser-routes">
+
           <button
             ref={createRef}
             type="button"
             onClick={onCreate}
             className="chooser-route chooser-route-primary"
           >
+
             <span
               className="chooser-route-icon"
               aria-hidden
@@ -1400,6 +1631,7 @@ function WorkPlanChooser({
             </span>
 
             <span>
+
               <strong>
                 Create New Work Item
               </strong>
@@ -1409,12 +1641,16 @@ function WorkPlanChooser({
                 let AWS assign a new Work
                 ID.
               </small>
+
             </span>
+
           </button>
+
 
           <div className="chooser-route-label">
             Continue Previous Work
           </div>
+
         </div>
 
 
@@ -1431,6 +1667,7 @@ function WorkPlanChooser({
           Search resumable work
         </label>
 
+
         <input
           id="resumable-search"
           className="input"
@@ -1445,13 +1682,17 @@ function WorkPlanChooser({
 
 
         <div className="work-item-list chooser-results">
+
           {matches.length ===
           0 ? (
+
             <div className="empty-state empty-state-compact">
               No resumable Work Items
               found.
             </div>
+
           ) : (
+
             matches.map(
               (item) => (
                 <WorkItemRow
@@ -1467,9 +1708,13 @@ function WorkPlanChooser({
                 />
               ),
             )
+
           )}
+
         </div>
+
       </div>
+
     </div>
   );
 }
@@ -1491,6 +1736,7 @@ function ErrorNotice({
       className="error-notice"
       role="alert"
     >
+
       <span>
         {message}
       </span>
@@ -1504,6 +1750,7 @@ function ErrorNotice({
       >
         Retry
       </button>
+
     </div>
   );
 }
