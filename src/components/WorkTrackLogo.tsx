@@ -5,8 +5,8 @@ type LogoProps = {
   className?: string;
 };
 
-/** WorkTrack mascot recreated from the supplied brand-reference composition. */
-export default function WorkTrackLogo({ size = 44, showWordmark = true, className }: LogoProps) {
+/** WorkTrack mascot based directly on the supplied reference composition. */
+export default function WorkTrackLogo({ size = 52, showWordmark = true, className }: LogoProps) {
   const horizontal = showWordmark;
 
   return (
@@ -16,44 +16,57 @@ export default function WorkTrackLogo({ size = 44, showWordmark = true, classNam
     >
       <svg
         className="wt-logo-art"
-        width={horizontal ? 150 : size}
-        height={horizontal ? 100 : size}
-        viewBox={horizontal ? '0 0 150 100' : '0 0 100 100'}
+        width={horizontal ? 180 : size}
+        height={horizontal ? 118 : size}
+        viewBox="0 0 170 118"
         role="img"
         aria-hidden="true"
       >
-        {/* orange clock/check behind the mascot */}
-        <path d="M72 12 A36 36 0 0 1 108 70" className="wt-clock-arc" />
-        <path d="M109 70 A36 36 0 0 1 102 79" className="wt-clock-arc wt-clock-arc-small" />
-        <path d="M72 10v7 M96 16l-3 7 M109 38h-7 M109 60l-7-2" className="wt-clock-tick" />
-        <path d="M78 51 L88 60 L105 39" className="wt-clock-check" />
+        {/* little sparkle from the reference */}
+        <path d="M12 55 l3 8 8 3-8 3-3 8-3-8-8-3 8-3Z" className="wt-spark" />
 
-        {/* chibi hair silhouette */}
-        <path d="M10 39 C8 31 11 22 18 17 C20 10 28 6 36 8 C43 5 52 8 57 14 C63 16 67 23 66 30 C66 35 63 40 59 43 C55 38 52 35 48 31 C45 36 39 38 34 34 C29 39 23 40 18 36 C16 40 13 41 10 39Z" className="wt-hair" />
-        <path d="M16 22 C22 12 33 8 43 12 C37 13 31 18 28 25 C24 20 20 20 16 22Z" className="wt-hair-highlight" />
-        <path d="M44 11 C53 13 59 18 62 25 C57 21 53 19 48 18Z" className="wt-hair-shine" />
-        <path d="M16 27 C19 21 23 18 28 17 C26 24 22 30 17 32Z" className="wt-fringe" />
+        {/* large orange clock arc */}
+        <path d="M91 15 C119 12 142 31 145 59 C147 76 141 91 130 101" className="wt-clock-arc" />
+        <path d="M89 15 L84 15" className="wt-clock-arc wt-clock-cap" />
+        <path d="M128 96 L133 101" className="wt-clock-arc wt-clock-cap" />
+
+        {/* clock ticks */}
+        <path d="M104 18v9 M127 29l-5 8 M139 51h-9 M137 73l-9-3" className="wt-clock-tick" />
+        {/* clock check */}
+        <path d="M104 57 L115 68 L134 45" className="wt-clock-check" />
+
+        {/* hair silhouette — deliberately fuller and spikier like the supplied mascot */}
+        <path d="M31 49 C22 45 19 37 21 28 C23 19 29 13 38 10 C43 4 53 2 61 6 C69 3 78 7 83 13 C92 16 96 23 95 31 C94 38 90 45 83 49 C77 45 73 40 69 35 C64 41 57 43 50 39 C45 45 38 49 31 49Z" className="wt-hair" />
+        <path d="M27 31 C29 20 39 12 50 11 C44 17 40 23 39 31 C35 26 31 27 27 31Z" className="wt-hair-highlight" />
+        <path d="M47 9 C58 6 70 9 77 16 C67 14 59 18 53 25 C50 19 49 14 47 9Z" className="wt-hair-shine" />
+        <path d="M73 12 C84 16 90 22 91 31 C86 26 81 23 75 22Z" className="wt-hair-highlight" />
+        <path d="M35 38 C38 31 43 25 49 23 C47 31 44 36 38 41Z" className="wt-fringe" />
+        <path d="M56 35 C60 29 64 26 70 25 C67 33 63 38 57 40Z" className="wt-fringe" />
 
         {/* face */}
-        <ellipse cx="36" cy="39" rx="19" ry="18" className="wt-face" />
-        <path d="M27 38 q3 4 6 0 M40 38 q3 4 6 0" className="wt-eye-closed" />
-        <path d="M31 46 q4 5 9 0" className="wt-smile" />
-        <ellipse cx="21" cy="44" rx="4" ry="2.5" className="wt-cheek" />
-        <ellipse cx="51" cy="44" rx="4" ry="2.5" className="wt-cheek" />
+        <ellipse cx="57" cy="48" rx="27" ry="25" className="wt-face" />
+        <path d="M44 49 q4 6 9 0 M61 49 q4 6 9 0" className="wt-eye-closed" />
+        <path d="M51 59 q6 7 12 0" className="wt-smile" />
+        <ellipse cx="36" cy="57" rx="6" ry="3" className="wt-cheek" />
+        <ellipse cx="78" cy="57" rx="6" ry="3" className="wt-cheek" />
 
         {/* orange hoodie/body */}
-        <path d="M16 59 C18 50 25 46 36 46 C47 46 55 51 59 59 L61 78 H11 Z" className="wt-shirt" />
-        <path d="M27 49 L36 60 L44 49" className="wt-collar" />
-        <path d="M19 58 C15 62 12 66 9 69 M53 58 C59 61 63 64 67 68" className="wt-arm" />
-        <path d="M26 63 L34 72 M45 62 L40 72" className="wt-sleeve-detail" />
+        <path d="M30 75 C33 65 42 62 57 62 C72 62 82 68 87 78 L91 103 H25 Z" className="wt-shirt" />
+        <path d="M45 66 L57 80 L69 66" className="wt-collar" />
+        <path d="M35 76 C29 82 25 87 20 92" className="wt-arm" />
+        <path d="M78 75 C85 78 90 83 96 88" className="wt-arm" />
+        <path d="M37 80 L47 93 M74 79 L66 93" className="wt-sleeve-detail" />
 
-        {/* laptop in front */}
-        <rect x="39" y="56" width="53" height="29" rx="4" className="wt-laptop" />
-        <rect x="44" y="61" width="43" height="19" rx="2.5" className="wt-screen" />
-        <path d="M35 86 H101 L94 92 H42 Z" className="wt-base" />
-        <path d="M61 86 H79" className="wt-base-line" />
-        <path d="M55 68 H72 M55 73 H67" className="wt-screen-line" />
-        <path d="M45 82 C49 78 53 77 57 80 M69 80 C74 76 79 78 83 82" className="wt-hand" />
+        {/* laptop */}
+        <rect x="54" y="76" width="78" height="42" rx="5" className="wt-laptop" />
+        <rect x="60" y="82" width="66" height="29" rx="3" className="wt-screen" />
+        <path d="M49 116 H142 L133 124 H58 Z" className="wt-base" />
+        <path d="M82 116 H105" className="wt-base-line" />
+        <path d="M74 91 H99 M74 98 H92" className="wt-screen-line" />
+
+        {/* hands resting on the laptop */}
+        <path d="M61 110 C66 104 72 103 78 108" className="wt-hand" />
+        <path d="M96 108 C102 103 109 104 115 110" className="wt-hand" />
       </svg>
 
       {horizontal && (
