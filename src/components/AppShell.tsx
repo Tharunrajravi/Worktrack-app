@@ -1,5 +1,6 @@
 import { NavLink, Outlet } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import WorkTrackLogo from './WorkTrackLogo';
 
 export default function AppShell() {
   const { user, logout } = useAuth();
@@ -13,33 +14,15 @@ export default function AppShell() {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          background: 'var(--surface)',
+          background: 'rgba(21,27,39,.92)',
+          backdropFilter: 'blur(14px)',
           position: 'sticky',
           top: 0,
           zIndex: 10,
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 28 }}>
-          <span style={{ display: 'flex', alignItems: 'center', gap: 8, fontWeight: 700, fontSize: 15 }}>
-            <span
-              aria-hidden
-              style={{
-                width: 20,
-                height: 20,
-                borderRadius: 5,
-                background: 'var(--brand)',
-                display: 'inline-flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: 'var(--brand-ink)',
-                fontSize: 12,
-                fontWeight: 800,
-              }}
-            >
-              W
-            </span>
-            WorkTrack
-          </span>
+          <WorkTrackLogo size={34} />
           <nav style={{ display: 'flex', gap: 2 }} aria-label="Primary">
             <NavTab to="/">Dashboard</NavTab>
             <NavTab to="/work-track">Work Track</NavTab>
