@@ -22,7 +22,7 @@ export default function WorkTrackLogo({ size = 52, showWordmark = true, classNam
         className="wt-logo-art"
         src={src}
         alt="WorkTrack"
-        style={showWordmark ? undefined : { width: size, height: size }}
+        style={showWordmark ? undefined : { width: size, height: 'auto' }}
       />
     </span>
   );
