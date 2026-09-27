@@ -1,3 +1,5 @@
+import type { CSSProperties } from 'react';
+
 type LogoProps = {
   size?: number;
   showWordmark?: boolean;
@@ -9,15 +11,8 @@ export default function WorkTrackLogo({ size = 42, showWordmark = true, compact 
   const iconSize = compact ? size : size;
 
   return (
-    <span className={`wt-logo ${className ?? ''}`} style={{ '--wt-logo-size': `${iconSize}px` } as React.CSSProperties}>
-      <svg
-        className="wt-logo-mark"
-        width={iconSize}
-        height={iconSize}
-        viewBox="0 0 64 64"
-        role="img"
-        aria-label="WorkTrack mascot logo"
-      >
+    <span className={`wt-logo ${className ?? ''}`} style={{ '--wt-logo-size': `${iconSize}px` } as CSSProperties}>
+      <svg className="wt-logo-mark" width={iconSize} height={iconSize} viewBox="0 0 64 64" role="img" aria-label="WorkTrack mascot logo">
         <circle cx="44" cy="27" r="15" className="wt-logo-clock" />
         <path d="M44 14v4M44 36v4M31 27h4M53 27h4" className="wt-logo-clock-tick" />
         <path d="M44 27l6-5M44 27l-5 5" className="wt-logo-clock-hand" />
@@ -27,11 +22,10 @@ export default function WorkTrackLogo({ size = 42, showWordmark = true, compact 
         <circle cx="28.5" cy="27.5" r="1.7" className="wt-logo-eye" />
         <path d="M23 32c1.5 1.6 3.5 1.6 5 0" className="wt-logo-smile" />
         <path d="M14 42c0-7 5-11 12-11s12 4 12 11v7H14v-7Z" className="wt-logo-shirt" />
-        <path d="M29 37l8 5" className="wt-logo-arm" />
+        <path d="M29 37l8 5M19 42l-5 6" className="wt-logo-arm" />
         <rect x="31" y="39" width="17" height="11" rx="2" className="wt-logo-laptop" />
         <path d="M28 51h23" className="wt-logo-laptop-base" />
         <path d="M36 42h8v5h-8z" className="wt-logo-screen" />
-        <path d="M19 42l-5 6" className="wt-logo-arm" />
       </svg>
       {showWordmark && (
         <span className="wt-logo-wordmark">
