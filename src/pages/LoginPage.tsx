@@ -1,6 +1,7 @@
 import { useState, type FormEvent } from 'react';
 import { Navigate, useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
+import WorkTrackLogo from '../components/WorkTrackLogo';
 
 export default function LoginPage() {
   const { isAuthenticated, login } = useAuth();
@@ -22,35 +23,19 @@ export default function LoginPage() {
   };
 
   return (
-    <div style={{ minHeight: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-      <div className="panel-raised" style={{ width: 380, padding: 36 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 28 }}>
-          <span
-            aria-hidden
-            style={{
-              width: 30,
-              height: 30,
-              borderRadius: 7,
-              background: 'var(--brand)',
-              display: 'inline-flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: 'var(--brand-ink)',
-              fontSize: 15,
-              fontWeight: 800,
-            }}
-          >
-            W
-          </span>
-          <div>
-            <div style={{ fontSize: 17, fontWeight: 700 }}>WorkTrack</div>
-            <div style={{ color: 'var(--text-faint)', fontSize: 12 }}>Work &amp; skill management</div>
+    <div className="wt-login">
+      <div className="panel-raised wt-login-card">
+        <div className="wt-login-hero">
+          <WorkTrackLogo size={82} showWordmark={false} />
+          <div className="wt-login-hero-copy">
+            <h1>WorkTrack</h1>
+            <p>Plan your work. Track your time.</p>
           </div>
         </div>
 
         <form onSubmit={handleSubmit} noValidate>
           <label htmlFor="login-name" className="field-label">
-            Name
+            Your name
           </label>
           <input
             id="login-name"
@@ -70,8 +55,8 @@ export default function LoginPage() {
               {error}
             </div>
           )}
-          <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: 16 }}>
-            Continue
+          <button type="submit" className="btn btn-primary" style={{ width: '100%', marginTop: 18 }}>
+            Start tracking
           </button>
         </form>
 

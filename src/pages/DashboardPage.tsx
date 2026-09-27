@@ -7,6 +7,7 @@ import TimerCard from '../components/TimerCard';
 import SessionSummary from '../components/SessionSummary';
 import ProgressChart from '../components/ProgressChart';
 import ExportModal from '../components/ExportModal';
+import WorkTrackLogo from '../components/WorkTrackLogo';
 import { useWorkTrackData } from '../hooks/useWorkTrackData';
 import { generateWorkId } from '../lib/id';
 import { getWorkIdsForDate } from '../lib/storage';
@@ -53,10 +54,6 @@ export default function DashboardPage() {
   const [showExport, setShowExport] = useState(false);
 
   const today = todayIso();
-
-  // "Today's work": planned today, or still open from an earlier day —
-  // resumable work doesn't disappear from the hub just because it wasn't
-  // created today.
   const dashboardItems = useMemo(
     () =>
       items
@@ -104,27 +101,21 @@ export default function DashboardPage() {
 
   return (
     <div>
-      <div
-        className="dashboard-header"
-        style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 32 }}
-      >
+      <div className="dashboard-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: 32 }}>
         <div>
-          <h1 style={{ fontSize: 26 }}>
-            {greeting()}
-            {user ? `, ${user.displayName}` : ''}
+          <div className="wt-dashboard-kicker">Your work, in focus</div>
+          <h1 className="wt-dashboard-title">
+            {greeting()}{user ? `, ${user.displayName}` : ''}
           </h1>
-          <div style={{ color: 'var(--text-muted)', fontSize: 14, marginTop: 5 }}>
-            {new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-            {completedToday > 0 && <span style={{ color: 'var(--text-faint)' }}> · {completedToday} completed today</span>}
+          <div className="wt-dashboard-subtitle">
+            Plan the day, track active time, and build a useful history.
+            <span style={{ color: 'var(--text-faint)' }}> · {new Date().toLocaleDateString(undefined, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</span>
+            {completedToday > 0 && <span style={{ color: 'var(--text-faint)' }}> · {completedToday} completed</span>}
           </div>
         </div>
         <div className="dashboard-header-actions" style={{ display: 'flex', gap: 10 }}>
-          <button onClick={openPlanChooser} className="btn btn-primary">
-            Set Today's Work Plan
-          </button>
-          <button onClick={() => setShowExport(true)} className="btn btn-secondary">
-            Export Work Tracking
-          </button>
+          <button onClick={openPlanChooser} className="btn btn-primary">Set Today's Work Plan</button>
+          <button onClick={() => setShowExport(true)} className="btn btn-secondary">Export Work Tracking</button>
         </div>
       </div>
 
@@ -141,10 +132,7 @@ export default function DashboardPage() {
           <TimerCard
             item={openItem}
             activeSession={openSession}
-            priorActiveMs={computeItemActiveMs(
-              getSessionsForItem(openItem.id).filter((s) => s.id !== openSession.id),
-              new Date(),
-            )}
+            priorActiveMs={computeItemActiveMs(getSessionsForItem(openItem.id).filter((s) => s.id !== openSession.id), new Date())}
             onStart={() => startSession(openItem)}
             onPause={() => pauseSession(openSession)}
             onResume={() => resumeSession(openSession)}
@@ -153,15 +141,16 @@ export default function DashboardPage() {
         ) : (
           <div className="empty-state">
             <div style={{ marginBottom: 14 }}>No active work right now.</div>
-            <button onClick={openPlanChooser} className="btn btn-primary">
-              Set Today's Work Plan
-            </button>
+            <button onClick={openPlanChooser} className="btn btn-primary">Set Today's Work Plan</button>
           </div>
         )}
       </section>
 
       <section>
-        <div className="section-heading">Today's work</div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+          <div className="section-heading" style={{ marginBottom: 0 }}>Today's work</div>
+          <WorkTrackLogo size={28} showWordmark={false} compact />
+        </div>
         {dashboardItems.length === 0 ? (
           <EmptyState onCreate={openPlanChooser} />
         ) : (
@@ -184,48 +173,16 @@ export default function DashboardPage() {
         )}
       </section>
 
-      {planFlow === 'chooser' && (
-        <PlanChooserModal
-          onCreateNew={handleChooseCreateNew}
-          onContinuePrevious={() => setPlanFlow('continue')}
-          onClose={() => setPlanFlow('none')}
-        />
-      )}
-      {planFlow === 'create' && nextWorkId && (
-        <WorkPlanForm workId={nextWorkId} date={today} onCancel={() => setPlanFlow('none')} onCreate={handleCreate} />
-      )}
-      {planFlow === 'continue' && (
-        <ContinueWorkList items={items} sessions={sessions} onSelect={handleContinueSelect} onClose={() => setPlanFlow('none')} />
-      )}
-      {summarySession && (
-        <SessionSummary item={summarySession.item} session={summarySession.session} onSave={handleSaveSummary} />
-      )}
+      {planFlow === 'chooser' && <PlanChooserModal onCreateNew={handleChooseCreateNew} onContinuePrevious={() => setPlanFlow('continue')} onClose={() => setPlanFlow('none')} />}
+      {planFlow === 'create' && nextWorkId && <WorkPlanForm workId={nextWorkId} date={today} onCancel={() => setPlanFlow('none')} onCreate={handleCreate} />}
+      {planFlow === 'continue' && <ContinueWorkList items={items} sessions={sessions} onSelect={handleContinueSelect} onClose={() => setPlanFlow('none')} />}
+      {summarySession && <SessionSummary item={summarySession.item} session={summarySession.session} onSave={handleSaveSummary} />}
       {showExport && <ExportModal items={items} sessions={sessions} defaultDate={today} onClose={() => setShowExport(false)} />}
     </div>
   );
 }
 
-function PlanRow({
-  item,
-  itemSessions,
-  isOpenItem,
-  openSession,
-  onStart,
-  onPause,
-  onResume,
-  onStop,
-  disableStart,
-}: {
-  item: WorkItem;
-  itemSessions: WorkSession[];
-  isOpenItem: boolean;
-  openSession: WorkSession | undefined;
-  onStart: () => void;
-  onPause: () => void;
-  onResume: () => void;
-  onStop: () => void;
-  disableStart: boolean;
-}) {
+function PlanRow({ item, itemSessions, isOpenItem, openSession, onStart, onPause, onResume, onStop, disableStart }: { item: WorkItem; itemSessions: WorkSession[]; isOpenItem: boolean; openSession: WorkSession | undefined; onStart: () => void; onPause: () => void; onResume: () => void; onStop: () => void; disableStart: boolean }) {
   const totalMs = computeItemActiveMs(itemSessions, new Date());
   const phase = isOpenItem && openSession ? getPhase(openSession) : null;
   const isCompleted = item.status === 'Completed';
@@ -235,9 +192,7 @@ function PlanRow({
     <div className={`work-row ${phase === 'running' || phase === 'paused' ? 'work-row-active' : ''}`}>
       <div style={{ minWidth: 0 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-          <span className="mono" style={{ fontSize: 11, color: 'var(--text-faint)' }}>
-            {item.workId}
-          </span>
+          <span className="mono" style={{ fontSize: 11, color: 'var(--text-faint)' }}>{item.workId}</span>
           <span style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>{item.project}</span>
           {item.environment && <span style={{ fontSize: 12.5, color: 'var(--text-faint)' }}>· {item.environment}</span>}
         </div>
@@ -246,36 +201,10 @@ function PlanRow({
       <div style={{ display: 'flex', alignItems: 'center', gap: 14, flexShrink: 0 }}>
         <PriorityTag priority={item.priority} />
         <StatusPill status={item.status} />
-        {totalMs > 0 && (
-          <span className="mono" style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>
-            {formatDuration(totalMs)}
-          </span>
-        )}
-        {phase === 'running' && (
-          <>
-            <button onClick={onPause} className="btn btn-secondary btn-sm">
-              Pause
-            </button>
-            <button onClick={onStop} className="btn btn-danger btn-sm">
-              Stop
-            </button>
-          </>
-        )}
-        {phase === 'paused' && (
-          <>
-            <button onClick={onResume} className="btn btn-primary btn-sm">
-              Resume
-            </button>
-            <button onClick={onStop} className="btn btn-danger btn-sm">
-              Stop
-            </button>
-          </>
-        )}
-        {phase === null && !isCompleted && (
-          <button onClick={onStart} disabled={disableStart} className="btn btn-primary btn-sm">
-            {isResumable ? 'Continue' : 'Start'}
-          </button>
-        )}
+        {totalMs > 0 && <span className="mono" style={{ fontSize: 12.5, color: 'var(--text-muted)' }}>{formatDuration(totalMs)}</span>}
+        {phase === 'running' && <><button onClick={onPause} className="btn btn-secondary btn-sm">Pause</button><button onClick={onStop} className="btn btn-danger btn-sm">Stop</button></>}
+        {phase === 'paused' && <><button onClick={onResume} className="btn btn-primary btn-sm">Resume</button><button onClick={onStop} className="btn btn-danger btn-sm">Stop</button></>}
+        {phase === null && !isCompleted && <button onClick={onStart} disabled={disableStart} className="btn btn-primary btn-sm">{isResumable ? 'Continue' : 'Start'}</button>}
       </div>
     </div>
   );
@@ -283,31 +212,14 @@ function PlanRow({
 
 function PriorityTag({ priority }: { priority: WorkItem['priority'] }) {
   if (priority !== 'Critical' && priority !== 'High') return null;
-  return (
-    <span className={`badge ${priority === 'Critical' ? 'badge-blocked' : 'badge-paused'}`}>
-      <span className="badge-dot" aria-hidden />
-      {priority}
-    </span>
-  );
+  return <span className={`badge ${priority === 'Critical' ? 'badge-blocked' : 'badge-paused'}`}><span className="badge-dot" aria-hidden />{priority}</span>;
 }
 
 function StatusPill({ status }: { status: WorkStatus }) {
   const badgeClass = status === 'Blocked' ? 'badge-blocked' : status === 'In Progress' ? 'badge-running' : 'badge-neutral';
-  return (
-    <span className={`badge ${badgeClass}`}>
-      <span className="badge-dot" aria-hidden />
-      {status}
-    </span>
-  );
+  return <span className={`badge ${badgeClass}`}><span className="badge-dot" aria-hidden />{status}</span>;
 }
 
 function EmptyState({ onCreate }: { onCreate: () => void }) {
-  return (
-    <div className="empty-state">
-      <div style={{ marginBottom: 14 }}>No work planned yet.</div>
-      <button onClick={onCreate} className="btn btn-primary">
-        Set Today's Work Plan
-      </button>
-    </div>
-  );
+  return <div className="empty-state"><div style={{ marginBottom: 14 }}>No work planned yet.</div><button onClick={onCreate} className="btn btn-primary">Set Today's Work Plan</button></div>;
 }
