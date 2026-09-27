@@ -1,480 +1,83 @@
-import type {
-  WorkItem,
-  WorkSession,
-  TimerInterval,
-} from '../types/work';
-
-
-// ============================================================
-// Create a local-compatible Work Session
+// Pure timer logic. No React, no storage, no side effects — this is the
+// piece the spec explicitly calls out as needing tests, so it is kept
+// isolated and deterministic (every function takes "now" as a parameter
+// instead of calling Date.now() internally).
 //
-// This remains useful for existing tests and local utilities.
-// AWS is authoritative when the application is connected.
-// ============================================================
+// RULE (from product spec): Time Spent = SUM(active work intervals),
+// NOT (End Time - Start Time). Paused periods must not count.
 
-export function createWorkSession(
-  workItemId: string,
-  sessionId: string,
-  now: Date,
-): WorkSession {
-  const nowIso =
-    now.toISOString();
+import type { DerivedTimerPhase, TimerInterval, TimerState } from '../types/work';
 
-
+export function startTimer(timer: TimerState, now: Date): TimerState {
+  if (timer.stoppedAt) {
+    throw new Error('Cannot start a timer that has already been stopped.');
+  }
+  if (getPhase(timer) === 'running') {
+    return timer; // already running — no-op, avoid double-open intervals
+  }
+  const nowIso = now.toISOString();
+  const newInterval: TimerInterval = { start: nowIso };
   return {
-    sessionId,
-
-    workItemId,
-
-    startedAt:
-      nowIso,
-
-    activeStartedAt:
-      nowIso,
-
-    status:
-      'Active',
-
-    intervals: [
-      {
-        start: nowIso,
-      },
-    ],
-
-    activeDuration:
-      0,
-
-    createdAt:
-      nowIso,
-
-    updatedAt:
-      nowIso,
+    ...timer,
+    firstStartedAt: timer.firstStartedAt ?? nowIso,
+    intervals: [...timer.intervals, newInterval],
   };
 }
 
-
-// ============================================================
-// Pause local session
-// ============================================================
-
-export function pauseSession(
-  session: WorkSession,
-  now: Date,
-): WorkSession {
-  if (
-    session.status !==
-    'Active'
-  ) {
-    return session;
+export function pauseTimer(timer: TimerState, now: Date): TimerState {
+  const phase = getPhase(timer);
+  if (phase !== 'running') {
+    throw new Error(`Cannot pause a timer in phase "${phase}".`);
   }
-
-
-  const currentMs =
-    computeCurrentActiveMs(
-      session,
-      now,
-    );
-
-
-  return {
-    ...session,
-
-    status:
-      'Paused',
-
-    activeDuration:
-      currentMs,
-
-    activeStartedAt:
-      undefined,
-
-    intervals:
-      closeCurrentInterval(
-        session.intervals,
-        now,
-      ),
-
-    updatedAt:
-      now.toISOString(),
-  };
+  return { ...timer, intervals: closeLastInterval(timer.intervals, now) };
 }
 
-
-// ============================================================
-// Resume local session
-// ============================================================
-
-export function resumeSession(
-  session: WorkSession,
-  now: Date,
-): WorkSession {
-  if (
-    session.status !==
-    'Paused'
-  ) {
-    return session;
+export function resumeTimer(timer: TimerState, now: Date): TimerState {
+  const phase = getPhase(timer);
+  if (phase !== 'paused') {
+    throw new Error(`Cannot resume a timer in phase "${phase}".`);
   }
-
-
-  const nowIso =
-    now.toISOString();
-
-
-  return {
-    ...session,
-
-    status:
-      'Active',
-
-    activeStartedAt:
-      nowIso,
-
-    intervals: [
-      ...session.intervals,
-
-      {
-        start:
-          nowIso,
-      },
-    ],
-
-    updatedAt:
-      nowIso,
-  };
+  return { ...timer, intervals: [...timer.intervals, { start: now.toISOString() }] };
 }
 
-
-// ============================================================
-// Stop local session
-// ============================================================
-
-export function stopSession(
-  session: WorkSession,
-  now: Date,
-): WorkSession {
-  if (
-    session.status !==
-    'Active'
-  ) {
-    return session;
+export function stopTimer(timer: TimerState, now: Date): TimerState {
+  const phase = getPhase(timer);
+  if (phase === 'not_started' || phase === 'stopped') {
+    throw new Error(`Cannot stop a timer in phase "${phase}".`);
   }
-
-
-  const currentMs =
-    computeCurrentActiveMs(
-      session,
-      now,
-    );
-
-
-  return {
-    ...session,
-
-    status:
-      'Ended',
-
-    activeDuration:
-      currentMs,
-
-    activeStartedAt:
-      undefined,
-
-    endedAt:
-      now.toISOString(),
-
-    intervals:
-      closeCurrentInterval(
-        session.intervals,
-        now,
-      ),
-
-    updatedAt:
-      now.toISOString(),
-  };
+  const intervals = phase === 'running' ? closeLastInterval(timer.intervals, now) : timer.intervals;
+  return { ...timer, intervals, stoppedAt: now.toISOString() };
 }
 
-
-// ============================================================
-// Session phase
-//
-// Backend status is authoritative.
-// ============================================================
-
-export type DerivedTimerPhase =
-  | 'not_started'
-  | 'running'
-  | 'paused'
-  | 'stopped';
-
-
-export function getSessionPhase(
-  session:
-    | WorkSession
-    | undefined,
-): DerivedTimerPhase {
-  if (!session) {
-    return 'not_started';
-  }
-
-
-  switch (
-    session.status
-  ) {
-    case 'Active':
-      return 'running';
-
-    case 'Paused':
-      return 'paused';
-
-    case 'Ended':
-      return 'stopped';
-
-    default:
-      return 'not_started';
-  }
+export function getPhase(timer: TimerState): DerivedTimerPhase {
+  if (timer.stoppedAt) return 'stopped';
+  if (timer.intervals.length === 0) return 'not_started';
+  const last = timer.intervals[timer.intervals.length - 1];
+  return last.end === undefined ? 'running' : 'paused';
 }
 
-
-// ============================================================
-// Current active milliseconds
-// ============================================================
-
-function computeCurrentActiveMs(
-  session: WorkSession,
-  now: Date,
-): number {
-  const storedMs =
-    Number(
-      session.activeDuration || 0,
-    );
-
-
-  if (
-    session.status !==
-      'Active' ||
-    !session.activeStartedAt
-  ) {
-    return storedMs;
-  }
-
-
-  const start =
-    new Date(
-      session.activeStartedAt,
-    ).getTime();
-
-
-  const current =
-    now.getTime();
-
-
-  if (
-    !Number.isFinite(
-      start,
-    )
-  ) {
-    return storedMs;
-  }
-
-
-  return Math.max(
-    storedMs +
-      (current - start),
-    storedMs,
-  );
+// The one rule everything else depends on: sum of closed interval
+// durations, plus (if currently running) the time since the open
+// interval's start up to `now`. Never derived from first-start/stop time.
+export function computeActiveMs(timer: TimerState, now: Date): number {
+  return timer.intervals.reduce((total, interval) => {
+    const start = new Date(interval.start).getTime();
+    const end = interval.end ? new Date(interval.end).getTime() : now.getTime();
+    return total + Math.max(0, end - start);
+  }, 0);
 }
 
-
-// ============================================================
-// Public session duration
-//
-// IMPORTANT:
-// Returns MILLISECONDS.
-// ============================================================
-
-export function computeSessionActiveMs(
-  session: WorkSession,
-  now: Date,
-): number {
-  return computeCurrentActiveMs(
-    session,
-    now,
-  );
+export function formatDuration(ms: number): string {
+  const totalSeconds = Math.floor(ms / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
 }
 
-
-// ============================================================
-// Work Item total
-// ============================================================
-
-export function computeWorkItemActiveMs(
-  item: WorkItem,
-  now: Date,
-): number {
-  return item.sessions.reduce(
-    (
-      total,
-      session,
-    ) =>
-      total +
-      computeSessionActiveMs(
-        session,
-        now,
-      ),
-    0,
-  );
-}
-
-
-// ============================================================
-// Active session
-//
-// Only an AWS Active session counts as active.
-// Paused sessions must NOT be returned here.
-// ============================================================
-
-export function getActiveSession(
-  item: WorkItem,
-): WorkSession | undefined {
-  return item.sessions.find(
-    (session) =>
-      session.status ===
-      'Active',
-  );
-}
-
-
-// ============================================================
-// Resumable Work Item
-//
-// Planned / In Progress / Blocked can be continued.
-// Completed cannot.
-// ============================================================
-
-export function isResumable(
-  item: WorkItem,
-): boolean {
-  if (
-    item.status ===
-    'Completed'
-  ) {
-    return false;
-  }
-
-
-  /*
-   * A Work Item with an active session cannot be resumed
-   * because that session is already running.
-   */
-  if (
-    getActiveSession(item)
-  ) {
-    return false;
-  }
-
-
-  return true;
-}
-
-
-// ============================================================
-// Close current timer interval
-// ============================================================
-
-function closeCurrentInterval(
-  intervals: TimerInterval[],
-  now: Date,
-): TimerInterval[] {
-  if (
-    intervals.length ===
-    0
-  ) {
-    return intervals;
-  }
-
-
-  const lastIndex =
-    intervals.length - 1;
-
-
-  const last =
-    intervals[lastIndex];
-
-
-  if (last.end) {
-    return intervals;
-  }
-
-
-  return intervals.map(
-    (
-      interval,
-      index,
-    ) =>
-      index ===
-      lastIndex
-        ? {
-            ...interval,
-            end:
-              now.toISOString(),
-          }
-        : interval,
-  );
-}
-
-
-// ============================================================
-// Format duration
-//
-// Input = milliseconds
-//
-// Example:
-// 24,581 ms → 00:00:24
-// ============================================================
-
-export function formatDuration(
-  milliseconds: number,
-): string {
-  const totalSeconds =
-    Math.floor(
-      Math.max(
-        0,
-        milliseconds,
-      ) / 1000,
-    );
-
-
-  const hours =
-    Math.floor(
-      totalSeconds / 3600,
-    );
-
-
-  const minutes =
-    Math.floor(
-      (totalSeconds % 3600) /
-        60,
-    );
-
-
-  const seconds =
-    totalSeconds % 60;
-
-
-  return [
-    String(hours).padStart(
-      2,
-      '0',
-    ),
-
-    String(minutes).padStart(
-      2,
-      '0',
-    ),
-
-    String(seconds).padStart(
-      2,
-      '0',
-    ),
-  ].join(':');
+function closeLastInterval(intervals: TimerInterval[], now: Date): TimerInterval[] {
+  const last = intervals[intervals.length - 1];
+  const closed: TimerInterval = { ...last, end: now.toISOString() };
+  return [...intervals.slice(0, -1), closed];
 }

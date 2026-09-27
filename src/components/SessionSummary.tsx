@@ -1,53 +1,105 @@
-import { useRef, useState } from 'react';
-import type { WorkItem, WorkStatus } from '../types/work';
+import { useId, useState } from 'react';
+import type { WorkItem, WorkSession, WorkStatus } from '../types/work';
 import { WORK_STATUSES } from '../types/work';
-import { computeSessionActiveMs, computeWorkItemActiveMs, formatDuration } from '../lib/timer';
-import { useModalAccessibility } from './useModalAccessibility';
+import { computeActiveMs, formatDuration } from '../lib/timer';
 
-export default function SessionSummary({ item, onSave }: { item: WorkItem; onSave: (updates: { status: WorkStatus; outcome?: string; notes?: string }) => void }) {
-  const [status, setStatus] = useState<WorkStatus>(item.status);
+interface Props {
+  item: WorkItem;
+  session: WorkSession;
+  onSave: (updates: { status: WorkStatus; outcome?: string; notes?: string }) => void;
+}
+
+export default function SessionSummary({ item, session, onSave }: Props) {
+  // Stopping a session never auto-completes the item (Part on status
+  // behavior) — default the picker to the item's current status, not to
+  // "Completed", so the common case (still In Progress, resuming later)
+  // takes zero extra clicks.
+  const [status, setStatus] = useState<WorkStatus>(item.status === 'Planned' ? 'In Progress' : item.status);
   const [outcome, setOutcome] = useState(item.outcome ?? '');
   const [notes, setNotes] = useState(item.notes ?? '');
-  const saveRef = useRef<HTMLButtonElement>(null);
-  // A session summary is intentionally confirmed with Save; Escape keeps it open.
-  const dialogRef = useModalAccessibility(() => undefined, saveRef);
-  const session = item.sessions[item.sessions.length - 1];
+  const statusId = useId();
+  const outcomeId = useId();
+  const notesId = useId();
+
+  const sessionActiveMs = computeActiveMs(session, new Date());
+  const start = session.firstStartedAt ? new Date(session.firstStartedAt) : null;
+  const end = session.stoppedAt ? new Date(session.stoppedAt) : null;
 
   return (
-    <div className="overlay overlay-center">
-      <div
-          ref={dialogRef}
-          className="modal modal-summary"
-          role="dialog"
-          aria-modal="true"
-          aria-label="Session recorded"
-          tabIndex={-1}
-        >
-        <div className="summary-mark" aria-hidden>✓</div>
-        <p className="eyebrow">Session recorded</p>
-        <div className="mono summary-work-id">{item.workId}</div>
-        <h2 id="session-summary-title">{item.taskTitle}</h2>
-        <p className="summary-copy">This session is complete. The Work Item remains available to continue unless you mark it Completed.</p>
-        <div className="summary-metrics">
-          <SummaryStat label="This session" value={formatDuration(computeSessionActiveMs(session, new Date()))} />
-          <SummaryStat label="Work Item total" value={formatDuration(computeWorkItemActiveMs(item, new Date()))} />
+    <div className="overlay overlay-center" role="dialog" aria-modal="true" aria-labelledby="session-summary-title">
+      <div className="modal" style={{ width: 480 }}>
+        <div className="mono" style={{ fontSize: 11, color: 'var(--text-faint)' }}>
+          {item.workId}
         </div>
-        <label className="field-label" htmlFor="summary-status">Work Item status</label>
-        <select id="summary-status" className="select" value={status} onChange={(event) => setStatus(event.target.value as WorkStatus)}>
-          {WORK_STATUSES.map((value) => <option key={value}>{value}</option>)}
+        <h2 id="session-summary-title" style={{ fontSize: 18, margin: '4px 0 20px' }}>
+          Work Session Summary
+        </h2>
+
+        <div style={{ fontWeight: 600, marginBottom: 4 }}>{item.taskTitle}</div>
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, margin: '16px 0 20px' }}>
+          <SummaryStat label="Start Time" value={start ? start.toLocaleTimeString() : '—'} />
+          <SummaryStat label="End Time" value={end ? end.toLocaleTimeString() : '—'} />
+          <SummaryStat label="Active Time Spent" value={formatDuration(sessionActiveMs)} highlight />
+          <SummaryStat label="Status" value={status} />
+        </div>
+
+        <label className="field-label" htmlFor={statusId}>
+          Status
+        </label>
+        <select id={statusId} className="select" value={status} onChange={(e) => setStatus(e.target.value as WorkStatus)}>
+          {WORK_STATUSES.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
         </select>
-        <label className="field-label" htmlFor="summary-outcome">Outcome <span className="field-hint">optional</span></label>
-        <textarea id="summary-outcome" className="textarea" value={outcome} onChange={(event) => setOutcome(event.target.value)} />
-        <label className="field-label" htmlFor="summary-notes">Notes <span className="field-hint">optional</span></label>
-        <textarea id="summary-notes" className="textarea" value={notes} onChange={(event) => setNotes(event.target.value)} />
-        <div className="modal-footer">
-          <button ref={saveRef} onClick={() => onSave({ status, outcome: outcome.trim() || undefined, notes: notes.trim() || undefined })} className="btn btn-primary">Save &amp; Close</button>
+        {status !== 'Completed' && (
+          <div style={{ fontSize: 12, color: 'var(--text-faint)', marginTop: 6 }}>
+            This work item stays resumable — you can start another session later.
+          </div>
+        )}
+
+        <label className="field-label" htmlFor={outcomeId} style={{ marginTop: 14 }}>
+          Outcome <span className="field-hint">optional</span>
+        </label>
+        <textarea
+          id={outcomeId}
+          className="textarea"
+          style={{ minHeight: 60 }}
+          value={outcome}
+          onChange={(e) => setOutcome(e.target.value)}
+          placeholder="What was the result?"
+        />
+
+        <label className="field-label" htmlFor={notesId} style={{ marginTop: 14 }}>
+          Notes <span className="field-hint">optional</span>
+        </label>
+        <textarea id={notesId} className="textarea" style={{ minHeight: 60 }} value={notes} onChange={(e) => setNotes(e.target.value)} />
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 22 }}>
+          <button
+            onClick={() => onSave({ status, outcome: outcome.trim() || undefined, notes: notes.trim() || undefined })}
+            className="btn btn-primary"
+          >
+            Save &amp; Close
+          </button>
         </div>
       </div>
     </div>
   );
 }
 
-function SummaryStat({ label, value }: { label: string; value: string }) {
-  return <div><span>{label}</span><strong className="mono">{value}</strong></div>;
+function SummaryStat({ label, value, highlight }: { label: string; value: string; highlight?: boolean }) {
+  return (
+    <div>
+      <div style={{ fontSize: 11, color: 'var(--text-faint)' }}>{label}</div>
+      <div
+        className="mono"
+        style={{ fontSize: highlight ? 20 : 14, fontWeight: 600, color: highlight ? 'var(--status-running)' : 'var(--text)' }}
+      >
+        {value}
+      </div>
+    </div>
+  );
 }

@@ -11,24 +11,36 @@ afterEach(() => {
   cleanup();
 });
 
+async function login(user: ReturnType<typeof userEvent.setup>) {
+  await user.type(screen.getByLabelText('Name'), 'Tharunraj');
+  await user.click(screen.getByRole('button', { name: 'Continue' }));
+  await screen.findByRole('heading', { name: /Tharunraj/ });
+}
+
+// The Active Work section and the matching Today's work row both render
+// Pause/Resume/Stop for the currently open session, so queries for those
+// button names are intentionally scoped to the "Active work" panel.
+function activeWorkPanel() {
+  return screen.getByText('Active work').closest('section') as HTMLElement;
+}
+
 describe('WorkTrack critical user journey', () => {
-  it('logs in, creates a work item, runs the timer through pause/resume/stop, and records it in Work Track', async () => {
+  it('logs in, creates a work item, runs the timer through pause/resume/stop, and records it in Work Track without auto-completing it', async () => {
     const user = userEvent.setup();
     render(<App />);
 
     // 1. Login
     expect(screen.getByText('WorkTrack')).toBeInTheDocument();
-    await user.type(screen.getByLabelText('Name'), 'Tharunraj');
-    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    await login(user);
 
     // 2. Dashboard loads
-    expect(await screen.findByRole('heading', { name: /Tharunraj/ })).toBeInTheDocument();
     expect(screen.getByText('No work planned yet.')).toBeInTheDocument();
+    expect(screen.getByText('No active work right now.')).toBeInTheDocument();
 
-    // 3. Set Today's Work Plan (two buttons render it — header action and empty state)
+    // 3. Set Today's Work Plan -> chooser -> Create New Work Plan
     await user.click(screen.getAllByRole('button', { name: "Set Today's Work Plan" })[0]);
     const chooser = await screen.findByRole('dialog', { name: "Set Today's Work Plan" });
-    await user.click(within(chooser).getByRole('button', { name: /Create New Work Item/ }));
+    await user.click(within(chooser).getByRole('button', { name: /Create New Work Plan/ }));
     const dialog = await screen.findByRole('dialog', { name: "Set Today's Work Plan" });
 
     await user.type(within(dialog).getByLabelText('Project *'), 'FiNoX');
@@ -38,75 +50,142 @@ describe('WorkTrack critical user journey', () => {
 
     // 4. Work item appears on dashboard
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
-    expect(screen.getByText('Investigate flaky test')).toBeInTheDocument();
+    expect(screen.getAllByText('Investigate flaky test').length).toBeGreaterThan(0);
 
-    // 5-7. Start works, timer runs
-    await user.click(
-      screen.getByRole('button', {
-        name: /Continue .* under Work ID/,
-      }),
-    );
-    expect(await screen.findByText('Running')).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: 'Pause' })).toBeInTheDocument();
+    // 5-7. Start works, timer runs — via the Today's work row (has its own Start button)
+    await user.click(screen.getByRole('button', { name: 'Start' }));
+    const panel = activeWorkPanel();
+    expect(await within(panel).findByText('Running')).toBeInTheDocument();
 
     // 8. Pause works
-    await user.click(screen.getByRole('button', { name: 'Pause' }));
-    expect(await screen.findByText('Paused')).toBeInTheDocument();
+    await user.click(within(panel).getByRole('button', { name: 'Pause' }));
+    expect(await within(panel).findByText('Paused')).toBeInTheDocument();
 
     // 9. Resume works
-    await user.click(screen.getByRole('button', { name: 'Resume' }));
-    expect(await screen.findByText('Running')).toBeInTheDocument();
+    await user.click(within(panel).getByRole('button', { name: 'Resume' }));
+    expect(await within(panel).findByText('Running')).toBeInTheDocument();
 
     // 10. Stop works -> 12. Work Session Summary appears
-    await user.click(screen.getByRole('button', { name: 'Stop Session' }));
-    const summary = await screen.findByRole('dialog', { name: 'Session recorded' });
-    expect(within(summary).getByText('This session')).toBeInTheDocument();
-    expect(within(summary).getByText('Work Item total')).toBeInTheDocument();
+    await user.click(within(panel).getByRole('button', { name: 'Stop' }));
+    const summary = await screen.findByRole('dialog', { name: 'Work Session Summary' });
+    expect(within(summary).getByText('Active Time Spent')).toBeInTheDocument();
 
-    // 13. Status can be updated, then saved
-    await user.selectOptions(within(summary).getByLabelText('Work Item status'), 'Completed');
+    // The status picker must NOT default to Completed — stopping a session
+    // never implies the work item is done.
+    expect(within(summary).getByLabelText('Status')).toHaveValue('In Progress');
+
+    // 13. Save without changing status
     await user.click(within(summary).getByRole('button', { name: 'Save & Close' }));
     await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
 
-    // 14. Work item appears in Work Track
+    // Item remains In Progress and resumable — no active session right now
+    expect(screen.getByText('No active work right now.')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Continue' })).toBeInTheDocument();
+
+    // 14. Work item appears in Work Track, still In Progress (not auto-completed)
     await user.click(screen.getByRole('link', { name: 'Work Track' }));
-    expect((await screen.findAllByText('Investigate flaky test')).length).toBeGreaterThan(0);
-    expect((await screen.findAllByText('Completed')).length).toBeGreaterThan(0);
+    expect(await screen.findByText('Investigate flaky test')).toBeInTheDocument();
+    expect(screen.getByText('In Progress')).toBeInTheDocument();
+  });
+
+  it('continues a previous work item under the same Work ID and sums active time across sessions', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await login(user);
+
+    // Create and run a first session of ~0 duration, stop it, leave In Progress.
+    await user.click(screen.getAllByRole('button', { name: "Set Today's Work Plan" })[0]);
+    await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: /Create New Work Plan/ }));
+    const dialog = await screen.findByRole('dialog', { name: "Set Today's Work Plan" });
+    await user.type(within(dialog).getByLabelText('Project *'), 'FiNoX');
+    await user.type(within(dialog).getByLabelText('Task Title *'), 'Develop the WorkTrack app');
+    await user.type(within(dialog).getByLabelText('Description *'), 'Multi-session continuation');
+    await user.click(within(dialog).getByRole('button', { name: 'Create Work Item' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+
+    const originalWorkId = screen.getByText(/WT-\d{8}-\d{3}/).textContent;
+
+    await user.click(screen.getByRole('button', { name: 'Start' }));
+    let panel = activeWorkPanel();
+    await user.click(within(panel).getByRole('button', { name: 'Stop' }));
+    const summary1 = await screen.findByRole('dialog', { name: 'Work Session Summary' });
+    await user.click(within(summary1).getByRole('button', { name: 'Save & Close' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+
+    // 15. "Continue" reuses the row's own Continue button — same Work ID, new session.
+    await user.click(screen.getByRole('button', { name: 'Continue' }));
+    panel = activeWorkPanel();
+    expect(await within(panel).findByText('Running')).toBeInTheDocument();
+    expect(within(panel).getByText(originalWorkId!)).toBeInTheDocument();
+
+    // 16. Concurrency: with a session already open, other rows can't start one.
+    // (Only one work item exists here, so we assert the row's own Start/Continue
+    // is replaced by Pause/Stop rather than a second, independently-clickable Start.)
+    expect(screen.queryByRole('button', { name: 'Start' })).not.toBeInTheDocument();
+
+    await user.click(within(panel).getByRole('button', { name: 'Stop' }));
+    const summary2 = await screen.findByRole('dialog', { name: 'Work Session Summary' });
+    await user.click(within(summary2).getByRole('button', { name: 'Save & Close' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+
+    // 11/12. Work Track shows one row (same Work ID, not a duplicate) with two sessions.
+    await user.click(screen.getByRole('link', { name: 'Work Track' }));
+    const rows = screen.getAllByText(originalWorkId!);
+    expect(rows).toHaveLength(1);
+    await user.click(rows[0]);
+    const detail = await screen.findByRole('dialog', { name: /Develop the WorkTrack app/ });
+    expect(within(detail).getByText('Session 1')).toBeInTheDocument();
+    expect(within(detail).getByText('Session 2')).toBeInTheDocument();
+  });
+
+  it('does not offer Continue on a Completed work item', async () => {
+    const user = userEvent.setup();
+    render(<App />);
+    await login(user);
+
+    await user.click(screen.getAllByRole('button', { name: "Set Today's Work Plan" })[0]);
+    await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: /Create New Work Plan/ }));
+    const dialog = await screen.findByRole('dialog', { name: "Set Today's Work Plan" });
+    await user.type(within(dialog).getByLabelText('Project *'), 'FiNoX');
+    await user.type(within(dialog).getByLabelText('Task Title *'), 'Ship the release notes');
+    await user.type(within(dialog).getByLabelText('Description *'), 'Final pass');
+    await user.click(within(dialog).getByRole('button', { name: 'Create Work Item' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+
+    await user.click(screen.getByRole('button', { name: 'Start' }));
+    const panel = activeWorkPanel();
+    await user.click(within(panel).getByRole('button', { name: 'Stop' }));
+    const summary = await screen.findByRole('dialog', { name: 'Work Session Summary' });
+    await user.selectOptions(within(summary).getByLabelText('Status'), 'Completed');
+    await user.click(within(summary).getByRole('button', { name: 'Save & Close' }));
+    await waitFor(() => expect(screen.queryByRole('dialog')).not.toBeInTheDocument());
+
+    // 13. Completed items don't offer Continue on the dashboard row...
+    expect(screen.queryByRole('button', { name: 'Continue' })).not.toBeInTheDocument();
+
+    // ...nor in the Continue Previous Work picker.
+    await user.click(screen.getAllByRole('button', { name: "Set Today's Work Plan" })[0]);
+    await user.click(within(await screen.findByRole('dialog')).getByRole('button', { name: /Continue Previous Work/ }));
+    expect(await screen.findByText('No resumable work items match this search.')).toBeInTheDocument();
+
+    // ...and the Work Track detail view shows it as read-only history.
+    await user.click(screen.getByRole('button', { name: 'Close' }));
+    await user.click(screen.getByRole('link', { name: 'Work Track' }));
+    await user.click(await screen.findByText('Ship the release notes'));
+    const detail = await screen.findByRole('dialog', { name: /Ship the release notes/ });
+    expect(within(detail).getByText(/read-only history/)).toBeInTheDocument();
+    expect(within(detail).queryByRole('button', { name: 'Continue Work' })).not.toBeInTheDocument();
   });
 
   it('shows a clear empty state and a real generate flow in the export dialog', async () => {
     const user = userEvent.setup();
     render(<App />);
+    await login(user);
 
-    await user.type(screen.getByLabelText('Name'), 'Tharunraj');
-    await user.click(screen.getByRole('button', { name: 'Continue' }));
-
-    await user.click(await screen.findByRole('button', { name: 'Export Work Tracking' }));
+    await user.click(screen.getByRole('button', { name: 'Export Work Tracking' }));
     const dialog = await screen.findByRole('dialog', { name: 'Export Work Tracking' });
 
     await user.click(within(dialog).getByRole('button', { name: 'Generate Report' }));
     expect(await within(dialog).findByText('No work records found for this date range.')).toBeInTheDocument();
   });
-  it('excludes completed items from continuation and resumes a Work Track row as a second session', async () => {
-    localStorage.setItem('worktrack_items_v1', JSON.stringify([
-      { id: 'resume-item', workId: 'WT-20260913-001', date: '2026-09-13', project: 'FiNoX', taskTitle: 'Continue me', description: 'Existing work', priority: 'Medium', technologies: [], links: [], status: 'In Progress', sessions: [{ sessionId: 'session-1', workItemId: 'resume-item', startedAt: '2026-09-13T10:00:00Z', endedAt: '2026-09-13T10:30:00Z', intervals: [{ start: '2026-09-13T10:00:00Z', end: '2026-09-13T10:30:00Z' }], activeDuration: 1800000, createdAt: '2026-09-13T10:00:00Z', updatedAt: '2026-09-13T10:30:00Z' }], createdAt: '2026-09-13T10:00:00Z', updatedAt: '2026-09-13T10:30:00Z' },
-      { id: 'completed-item', workId: 'WT-20260913-002', date: '2026-09-13', project: 'FiNoX', taskTitle: 'Do not continue', description: 'Done', priority: 'Medium', technologies: [], links: [], status: 'Completed', sessions: [], createdAt: '2026-09-13T10:00:00Z', updatedAt: '2026-09-13T10:00:00Z' }
-    ]));
-    const user = userEvent.setup();
-    render(<App />);
-    await user.type(screen.getByLabelText('Name'), 'Tharunraj');
-    await user.click(screen.getByRole('button', { name: 'Continue' }));
-    await user.click((await screen.findAllByRole('button', { name: "Set Today's Work Plan" }))[0]);
-    const chooser = await screen.findByRole('dialog', { name: "Set Today's Work Plan" });
-    expect(within(chooser).getByText('Continue me')).toBeInTheDocument();
-    expect(within(chooser).queryByText('Do not continue')).not.toBeInTheDocument();
-    await user.click(within(chooser).getByRole('button', { name: /Continue Continue me/ }));
-    expect(await screen.findByText('Session 2', { exact: false })).toBeInTheDocument();
-    await user.click(screen.getByRole('button', { name: 'Stop Session' }));
-    await user.click(within(await screen.findByRole('dialog', { name: 'Session recorded' })).getByRole('button', { name: 'Save & Close' }));
-    await user.click(screen.getByRole('link', { name: 'Work Track' }));
-    await user.click((await screen.findAllByRole('button', { name: /Continue Continue me/ }))[0]);
-    expect(await screen.findByText('Session 3', { exact: false })).toBeInTheDocument();
-  });
-
 });

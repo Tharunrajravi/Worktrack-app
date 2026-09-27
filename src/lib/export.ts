@@ -6,8 +6,9 @@
 // this needs to run server-side against a much larger history.
 
 import * as XLSX from 'xlsx';
-import type { WorkItem } from '../types/work';
-import { computeWorkItemActiveMs, formatDuration } from './timer';
+import type { WorkItem, WorkSession } from '../types/work';
+import { formatDuration } from './timer';
+import { computeItemActiveMs, sessionsForItem } from './sessions';
 
 const EXPORT_COLUMNS = [
   'Work ID',
@@ -34,8 +35,8 @@ export function filterItemsByDateRange(items: WorkItem[], startDate: string, end
     .sort((a, b) => a.date.localeCompare(b.date) || a.createdAt.localeCompare(b.createdAt));
 }
 
-export function itemToRow(item: WorkItem, now: Date): string[] {
-  const activeMs = computeWorkItemActiveMs(item, now);
+export function itemToRow(item: WorkItem, sessions: WorkSession[], now: Date): string[] {
+  const activeMs = computeItemActiveMs(sessionsForItem(sessions, item.id), now);
   return [
     item.workId,
     item.date,
@@ -56,8 +57,8 @@ export function itemToRow(item: WorkItem, now: Date): string[] {
   ];
 }
 
-export function buildCsv(items: WorkItem[], now: Date): string {
-  const rows = [EXPORT_COLUMNS as unknown as string[], ...items.map((item) => itemToRow(item, now))];
+export function buildCsv(items: WorkItem[], sessions: WorkSession[], now: Date): string {
+  const rows = [EXPORT_COLUMNS as unknown as string[], ...items.map((item) => itemToRow(item, sessions, now))];
   return rows.map((row) => row.map(escapeCsvCell).join(',')).join('\r\n');
 }
 
@@ -68,8 +69,8 @@ function escapeCsvCell(value: string): string {
   return value;
 }
 
-export function buildXlsxBlob(items: WorkItem[], now: Date): Blob {
-  const rows = [EXPORT_COLUMNS as unknown as string[], ...items.map((item) => itemToRow(item, now))];
+export function buildXlsxBlob(items: WorkItem[], sessions: WorkSession[], now: Date): Blob {
+  const rows = [EXPORT_COLUMNS as unknown as string[], ...items.map((item) => itemToRow(item, sessions, now))];
   const worksheet = XLSX.utils.aoa_to_sheet(rows);
   worksheet['!cols'] = EXPORT_COLUMNS.map((col) => ({ wch: Math.max(12, col.length + 2) }));
   const workbook = XLSX.utils.book_new();

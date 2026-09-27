@@ -1,5 +1,10 @@
-import type { WorkItem } from '../types/work';
-import { computeWorkItemActiveMs } from './timer';
+// Weekly dashboard aggregation — now session-aware. Work is attributed to
+// the calendar day it was actually WORKED (a session's start date), not the
+// day the item was originally planned, since a multi-day item can now span
+// several days of sessions.
+
+import type { WorkItem, WorkSession } from '../types/work';
+import { computeActiveMs } from './timer';
 
 export interface DayStat {
   date: string; // yyyy-mm-dd
@@ -34,32 +39,40 @@ export function getCurrentWeekDates(now: Date): string[] {
   });
 }
 
-export function computeWeekStats(items: WorkItem[], now: Date): DayStat[] {
+function round2(n: number): number {
+  return Math.round(n * 100) / 100;
+}
+
+export function computeWeekStats(items: WorkItem[], sessions: WorkSession[], now: Date): DayStat[] {
   const weekDates = getCurrentWeekDates(now);
+  const itemById = new Map(items.map((item) => [item.id, item]));
 
   return weekDates.map((date, i) => {
-    const dayItems = items.filter((item) => item.date === date);
     let workMs = 0;
     let learningMs = 0;
-    let completedTasks = 0;
     let learningSessions = 0;
 
-    for (const item of dayItems) {
-      const activeMs = computeWorkItemActiveMs(item, now);
+    for (const session of sessions) {
+      if (!session.firstStartedAt) continue;
+      if (toIsoDate(new Date(session.firstStartedAt)) !== date) continue;
+      const item = itemById.get(session.workItemId);
+      if (!item) continue;
+      const activeMs = computeActiveMs(session, now);
       if (item.category === 'Learning') {
         learningMs += activeMs;
         learningSessions += 1;
       } else {
         workMs += activeMs;
       }
-      if (item.status === 'Completed') completedTasks += 1;
     }
+
+    const completedTasks = items.filter((item) => item.date === date && item.status === 'Completed').length;
 
     return {
       date,
       label: DAY_LABELS[i],
-      workHours: Math.round((workMs / 3_600_000) * 100) / 100,
-      learningHours: Math.round((learningMs / 3_600_000) * 100) / 100,
+      workHours: round2(workMs / 3_600_000),
+      learningHours: round2(learningMs / 3_600_000),
       completedTasks,
       learningSessions,
     };
