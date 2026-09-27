@@ -1,5 +1,3 @@
-import type { CSSProperties } from 'react';
-
 type LogoProps = {
   size?: number;
   showWordmark?: boolean;
@@ -7,29 +5,69 @@ type LogoProps = {
   className?: string;
 };
 
-export default function WorkTrackLogo({ size = 42, showWordmark = true, compact = false, className }: LogoProps) {
-  const iconSize = compact ? size : size;
+/**
+ * WorkTrack mascot mark based on the supplied brand reference:
+ * a small chibi worker at a laptop, backed by a clock/check mark.
+ * `showWordmark` is used on the login page; the dashboard uses the
+ * icon-only version.
+ */
+export default function WorkTrackLogo({ size = 42, showWordmark = true, className }: LogoProps) {
+  const height = showWordmark ? Math.round(size * 0.42) : size;
+  const width = showWordmark ? Math.round(size * 3.25) : size;
 
   return (
-    <span className={`wt-logo ${className ?? ''}`} style={{ '--wt-logo-size': `${iconSize}px` } as CSSProperties}>
-      <svg className="wt-logo-mark" width={iconSize} height={iconSize} viewBox="0 0 64 64" role="img" aria-label="WorkTrack mascot logo">
-        <circle cx="44" cy="27" r="15" className="wt-logo-clock" />
-        <path d="M44 14v4M44 36v4M31 27h4M53 27h4" className="wt-logo-clock-tick" />
-        <path d="M44 27l6-5M44 27l-5 5" className="wt-logo-clock-hand" />
-        <path d="M17 20c0-7 5-11 12-11 5 0 9 2 11 6-3 1-6 3-8 6-4-2-10-2-15-1Z" className="wt-logo-hair" />
-        <circle cx="25" cy="28" r="10" className="wt-logo-face" />
-        <circle cx="21.5" cy="27.5" r="1.7" className="wt-logo-eye" />
-        <circle cx="28.5" cy="27.5" r="1.7" className="wt-logo-eye" />
-        <path d="M23 32c1.5 1.6 3.5 1.6 5 0" className="wt-logo-smile" />
-        <path d="M14 42c0-7 5-11 12-11s12 4 12 11v7H14v-7Z" className="wt-logo-shirt" />
-        <path d="M29 37l8 5M19 42l-5 6" className="wt-logo-arm" />
-        <rect x="31" y="39" width="17" height="11" rx="2" className="wt-logo-laptop" />
-        <path d="M28 51h23" className="wt-logo-laptop-base" />
-        <path d="M36 42h8v5h-8z" className="wt-logo-screen" />
+    <span
+      className={`wt-logo ${showWordmark ? 'wt-logo-horizontal' : 'wt-logo-icon-only'} ${className ?? ''}`}
+      aria-label="WorkTrack"
+    >
+      <svg
+        className="wt-logo-art"
+        width={showWordmark ? 126 : width}
+        height={showWordmark ? 92 : height}
+        viewBox="0 0 126 92"
+        role="img"
+        aria-hidden="true"
+      >
+        {/* Clock behind the character */}
+        <path d="M69 13 A35 35 0 0 1 108 61" className="wt-clock-arc" />
+        <path d="M108 61 A35 35 0 0 1 98 72" className="wt-clock-arc wt-clock-arc-small" />
+        <path d="M76 25 L76 31 M96 25 L93 30 M105 42 L99 42 M104 58 L98 55" className="wt-clock-tick" />
+        <path d="M82 43 L92 51 L105 35" className="wt-clock-check" />
+
+        {/* Chibi hair */}
+        <path d="M16 31 C17 17 28 10 43 12 C54 13 62 20 64 30 C58 27 54 25 49 25 C45 30 40 31 35 28 C31 34 23 35 16 31Z" className="wt-hair" />
+        <path d="M22 20 C27 13 38 9 48 14 C43 15 39 18 36 23 C31 19 26 19 22 20Z" className="wt-hair-highlight" />
+
+        {/* Face */}
+        <ellipse cx="38" cy="36" rx="16" ry="15" className="wt-face" />
+        <path d="M24 33 C25 27 29 24 34 23 C32 29 28 34 24 33Z" className="wt-fringe" />
+        <circle cx="32" cy="37" r="2.1" className="wt-eye" />
+        <circle cx="44" cy="37" r="2.1" className="wt-eye" />
+        <path d="M34 44 C37 47 41 47 44 43" className="wt-smile" />
+        <circle cx="27" cy="42" r="2.4" className="wt-cheek" />
+        <circle cx="49" cy="42" r="2.4" className="wt-cheek" />
+
+        {/* Small body + orange hoodie */}
+        <path d="M17 58 C18 49 26 46 38 46 C50 46 57 50 60 59 L61 72 L14 72 L17 58Z" className="wt-shirt" />
+        <path d="M29 49 L34 58 L39 50" className="wt-collar" />
+        <path d="M18 59 L9 69" className="wt-arm" />
+        <path d="M55 56 L67 64" className="wt-arm" />
+
+        {/* Laptop */}
+        <rect x="45" y="54" width="45" height="25" rx="3.5" className="wt-laptop" />
+        <rect x="49" y="58" width="37" height="17" rx="2" className="wt-screen" />
+        <path d="M39 80 H96 L91 85 H45 Z" className="wt-base" />
+        <path d="M63 80 H78" className="wt-base-line" />
+        <path d="M61 65 H74" className="wt-screen-line" />
+        <path d="M61 69 H70" className="wt-screen-line wt-screen-line-short" />
       </svg>
+
       {showWordmark && (
-        <span className="wt-logo-wordmark">
-          <span>Work</span><strong>Track</strong>
+        <span className="wt-logo-copy">
+          <span className="wt-logo-wordmark">
+            <span>Work</span><strong>Track</strong>
+          </span>
+          <span className="wt-logo-tagline">PLAN · TRACK · LEARN · GROW</span>
         </span>
       )}
     </span>
