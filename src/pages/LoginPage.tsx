@@ -26,14 +26,10 @@ export default function LoginPage() {
     <div className="wt-login">
       <div className="panel-raised wt-login-card">
         <div className="wt-login-hero">
-          <WorkTrackLogo size={82} showWordmark={false} />
-          <div className="wt-login-hero-copy">
-            <h1>WorkTrack</h1>
-            <p>Plan your work. Track your time.</p>
-          </div>
+          <WorkTrackLogo size={42} showWordmark />
         </div>
 
-        <form onSubmit={handleSubmit} noValidate>
+        <form onSubmit={handleSubmit} noValidate className="wt-login-form">
           <label htmlFor="login-name" className="field-label">
             Your name
           </label>
@@ -60,7 +56,7 @@ export default function LoginPage() {
           </button>
         </form>
 
-        <div style={{ color: 'var(--text-faint)', fontSize: 12, marginTop: 20, lineHeight: 1.6 }}>
+        <div className="wt-login-note">
           Local development sign-in — Amazon Cognito replaces this in Phase 3.
         </div>
       </div>
