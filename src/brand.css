@@ -1,0 +1,83 @@
+/* WorkTrack visual refinement: minimal mascot + calm productivity UI */
+:root {
+  --brand: #e8a33d;
+  --brand-strong: #f1b85d;
+  --brand-bg: rgba(232, 163, 61, 0.12);
+  --brand-ink: #171008;
+  --bg: #0d1119;
+  --surface: #151b27;
+  --surface-raised: #1b2332;
+  --surface-hover: #222c3e;
+  --border: rgba(241, 243, 246, 0.1);
+  --border-strong: rgba(241, 243, 246, 0.18);
+  --text: #f1f3f6;
+  --text-muted: #9aa4b2;
+  --text-faint: #697486;
+  --status-running: #4fd1ae;
+  --status-running-bg: rgba(79, 209, 174, 0.12);
+  --font-display: 'Space Grotesk', 'Inter', system-ui, sans-serif;
+  --radius: 10px;
+  --radius-lg: 16px;
+  --shadow-md: 0 18px 50px rgba(0,0,0,.28);
+}
+
+body {
+  background: radial-gradient(circle at 80% -10%, rgba(232,163,61,.07), transparent 32%), var(--bg);
+}
+
+h1, h2, h3 { font-family: var(--font-display); }
+
+.wt-logo { display:inline-flex; align-items:center; gap:9px; min-width:0; color:var(--text); }
+.wt-logo-mark { display:block; flex:0 0 auto; overflow:visible; }
+.wt-logo-clock { fill:none; stroke:var(--brand); stroke-width:3; }
+.wt-logo-clock-tick, .wt-logo-clock-hand { fill:none; stroke:var(--brand); stroke-width:2.2; stroke-linecap:round; }
+.wt-logo-clock-hand { stroke:var(--text); }
+.wt-logo-hair { fill:#252c39; }
+.wt-logo-face { fill:#e8b98a; }
+.wt-logo-eye { fill:#111722; }
+.wt-logo-smile { fill:none; stroke:#111722; stroke-width:1.7; stroke-linecap:round; }
+.wt-logo-shirt { fill:#252c39; }
+.wt-logo-arm { fill:none; stroke:#e8b98a; stroke-width:4; stroke-linecap:round; }
+.wt-logo-laptop { fill:#6f7d91; stroke:#111722; stroke-width:1.5; }
+.wt-logo-laptop-base { fill:none; stroke:#e8a33d; stroke-width:3; stroke-linecap:round; }
+.wt-logo-screen { fill:#182231; }
+.wt-logo-wordmark { font-family:var(--font-display); font-weight:700; font-size:16px; letter-spacing:-.025em; white-space:nowrap; }
+.wt-logo-wordmark strong { color:var(--brand); font-weight:700; }
+.wt-logo--large .wt-logo-wordmark { font-size:24px; }
+
+.wt-brand-panel { display:flex; align-items:center; gap:12px; }
+.wt-brand-caption { color:var(--text-faint); font-size:11px; margin-top:2px; }
+
+.panel { background:linear-gradient(145deg, rgba(27,35,50,.96), rgba(21,27,39,.96)); border-color:var(--border); }
+.panel-raised { background:linear-gradient(145deg, #1b2332, #141b28); border-color:var(--border); box-shadow:var(--shadow-md); }
+
+.btn { border-radius:9px; transition:transform 140ms ease, background-color 140ms ease, border-color 140ms ease; }
+.btn:hover:not(:disabled) { transform:translateY(-1px); }
+.btn-primary { background:var(--brand); border-color:var(--brand); }
+.btn-primary:hover:not(:disabled) { background:var(--brand-strong); }
+
+.nav-tab { border-radius:9px; }
+.nav-tab-active { background:rgba(232,163,61,.12); color:var(--text); box-shadow:inset 2px 0 0 var(--brand); }
+
+.work-row { background:rgba(21,27,39,.86); border-radius:12px; padding:16px 18px; }
+.work-row:hover { background:var(--surface-hover); border-color:rgba(232,163,61,.22); }
+.work-row-active { border-color:rgba(79,209,174,.35); }
+
+.empty-state { background:rgba(21,27,39,.55); border-color:var(--border-strong); }
+
+.wt-login { min-height:100%; display:grid; place-items:center; padding:28px; position:relative; overflow:hidden; }
+.wt-login::before { content:''; position:absolute; width:420px; height:420px; border-radius:50%; background:rgba(232,163,61,.06); filter:blur(30px); top:-180px; right:-120px; }
+.wt-login-card { width:min(420px,100%); padding:34px; position:relative; }
+.wt-login-hero { display:flex; align-items:center; gap:16px; margin-bottom:30px; }
+.wt-login-hero-copy h1 { font-size:26px; margin:0; }
+.wt-login-hero-copy p { margin:3px 0 0; color:var(--text-muted); font-size:13px; }
+
+.wt-dashboard-kicker { color:var(--brand); font-size:11px; font-weight:700; letter-spacing:.09em; text-transform:uppercase; margin-bottom:7px; }
+.wt-dashboard-title { font-size:30px !important; letter-spacing:-.035em !important; }
+.wt-dashboard-subtitle { color:var(--text-muted); margin-top:6px; }
+
+@media (max-width: 640px) {
+  .wt-login { padding:18px; }
+  .wt-login-card { padding:26px 22px; }
+  .wt-dashboard-title { font-size:25px !important; }
+}
