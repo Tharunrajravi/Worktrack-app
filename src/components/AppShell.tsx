@@ -22,7 +22,9 @@ export default function AppShell() {
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 28 }}>
-          <WorkTrackLogo size={34} />
+          <span className="wt-shell-brand" title="WorkTrack" aria-label="WorkTrack">
+            <WorkTrackLogo size={42} showWordmark={false} />
+          </span>
           <nav style={{ display: 'flex', gap: 2 }} aria-label="Primary">
             <NavTab to="/">Dashboard</NavTab>
             <NavTab to="/work-track">Work Track</NavTab>
