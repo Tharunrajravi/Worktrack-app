@@ -27,7 +27,7 @@ body {
 
 h1, h2, h3 { font-family: var(--font-display); }
 
-/* ---------- Reference WorkTrack mascot ---------- */
+/* ---------- WorkTrack mascot ---------- */
 .wt-logo {
   display: inline-flex;
   align-items: center;
@@ -36,9 +36,7 @@ h1, h2, h3 { font-family: var(--font-display); }
   flex: 0 0 auto;
 }
 
-.wt-logo-horizontal {
-  gap: 10px;
-}
+.wt-logo-horizontal { gap: 10px; }
 
 .wt-logo-icon-only {
   width: 42px;
@@ -53,13 +51,13 @@ h1, h2, h3 { font-family: var(--font-display); }
 }
 
 .wt-logo-icon-only .wt-logo-art {
-  width: 42px;
-  height: 42px;
+  width: 48px;
+  height: 44px;
 }
 
 .wt-logo-horizontal .wt-logo-art {
-  width: 126px;
-  height: 92px;
+  width: 150px;
+  height: 100px;
 }
 
 .wt-clock-arc {
@@ -69,9 +67,7 @@ h1, h2, h3 { font-family: var(--font-display); }
   stroke-linecap: round;
 }
 
-.wt-clock-arc-small {
-  stroke-width: 5;
-}
+.wt-clock-arc-small { stroke-width: 5; }
 
 .wt-clock-tick {
   fill: none;
@@ -94,13 +90,9 @@ h1, h2, h3 { font-family: var(--font-display); }
   stroke-width: 1.2;
 }
 
-.wt-hair-highlight {
-  fill: #49202a;
-}
-
-.wt-fringe {
-  fill: #24151a;
-}
+.wt-hair-highlight { fill: #49202a; }
+.wt-hair-shine { fill: #632e35; opacity: .72; }
+.wt-fringe { fill: #24151a; }
 
 .wt-face {
   fill: #ffc39a;
@@ -108,8 +100,11 @@ h1, h2, h3 { font-family: var(--font-display); }
   stroke-width: 1;
 }
 
-.wt-eye {
-  fill: #16161b;
+.wt-eye-closed {
+  fill: none;
+  stroke: #16161b;
+  stroke-width: 2.1;
+  stroke-linecap: round;
 }
 
 .wt-smile {
@@ -119,10 +114,7 @@ h1, h2, h3 { font-family: var(--font-display); }
   stroke-linecap: round;
 }
 
-.wt-cheek {
-  fill: #f28e82;
-  opacity: .65;
-}
+.wt-cheek { fill: #f28e82; opacity: .65; }
 
 .wt-shirt {
   fill: #f39a25;
@@ -145,15 +137,27 @@ h1, h2, h3 { font-family: var(--font-display); }
   stroke-linecap: round;
 }
 
+.wt-sleeve-detail {
+  fill: none;
+  stroke: #d87918;
+  stroke-width: 1.6;
+  stroke-linecap: round;
+}
+
+.wt-hand {
+  fill: none;
+  stroke: #ffc39a;
+  stroke-width: 3.5;
+  stroke-linecap: round;
+}
+
 .wt-laptop {
   fill: #172131;
   stroke: #080b10;
   stroke-width: 2;
 }
 
-.wt-screen {
-  fill: #24334a;
-}
+.wt-screen { fill: #24334a; }
 
 .wt-base {
   fill: #101820;
@@ -173,9 +177,7 @@ h1, h2, h3 { font-family: var(--font-display); }
   stroke-linecap: round;
 }
 
-.wt-screen-line-short {
-  opacity: .65;
-}
+.wt-screen-line-short { opacity: .65; }
 
 .wt-logo-copy {
   display: inline-flex;
@@ -266,7 +268,7 @@ h1, h2, h3 { font-family: var(--font-display); }
 }
 
 .wt-login-hero .wt-logo-horizontal {
-  transform: scale(1.15);
+  transform: scale(1.08);
   transform-origin: center;
 }
 
@@ -275,9 +277,7 @@ h1, h2, h3 { font-family: var(--font-display); }
   margin: 0 auto;
 }
 
-.wt-login-form .field-label {
-  margin-top: 0;
-}
+.wt-login-form .field-label { margin-top: 0; }
 
 .wt-login-form .input {
   min-height: 46px;
@@ -328,39 +328,4 @@ h1, h2, h3 { font-family: var(--font-display); }
 .wt-shell-brand .wt-logo-icon-only {
   width: 42px;
   height: 42px;
-}
-
-.panel {
-  background: linear-gradient(145deg, rgba(27, 35, 50, .96), rgba(21, 27, 39, .96));
-  border-color: var(--border);
-}
-
-.panel-raised {
-  background: linear-gradient(145deg, #1b2332, #141b28);
-  border-color: var(--border);
-  box-shadow: var(--shadow-md);
-}
-
-.btn {
-  border-radius: 9px;
-  transition: transform 140ms ease, background-color 140ms ease, border-color 140ms ease;
-}
-
-.btn:hover:not(:disabled) { transform: translateY(-1px); }
-.btn-primary { background: var(--brand); border-color: var(--brand); }
-.btn-primary:hover:not(:disabled) { background: var(--brand-strong); }
-
-.nav-tab { border-radius: 9px; }
-.nav-tab-active { background: rgba(232, 163, 61, .12); color: var(--text); box-shadow: inset 2px 0 0 var(--brand); }
-.work-row { background: rgba(21, 27, 39, .86); border-radius: 12px; padding: 16px 18px; }
-.work-row:hover { background: var(--surface-hover); border-color: rgba(232, 163, 61, .22); }
-.work-row-active { border-color: rgba(79, 209, 174, .35); }
-.empty-state { background: rgba(21, 27, 39, .55); border-color: var(--border-strong); }
-
-@media (max-width: 640px) {
-  .wt-login { padding: 18px; }
-  .wt-login-card { padding: 30px 20px 26px; }
-  .wt-login-hero .wt-logo-horizontal { transform: scale(.88); }
-  .wt-logo-tagline { letter-spacing: .15em; }
-  .wt-dashboard-title { font-size: 25px !important; }
 }
