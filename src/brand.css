@@ -27,7 +27,7 @@ body {
 
 h1, h2, h3 { font-family: var(--font-display); }
 
-/* ---------- WorkTrack mascot ---------- */
+/* ---------- WorkTrack supplied reference artwork ---------- */
 .wt-logo {
   display: inline-flex;
   align-items: center;
@@ -36,7 +36,9 @@ h1, h2, h3 { font-family: var(--font-display); }
   flex: 0 0 auto;
 }
 
-.wt-logo-horizontal { gap: 12px; }
+.wt-logo-horizontal {
+  gap: 0;
+}
 
 .wt-logo-icon-only {
   width: 56px;
@@ -48,168 +50,21 @@ h1, h2, h3 { font-family: var(--font-display); }
   display: block;
   flex: 0 0 auto;
   overflow: visible;
+  object-fit: contain;
 }
 
-.wt-logo-icon-only .wt-logo-art {
-  width: 58px;
-  height: 58px;
-}
-
+/* The supplied horizontal reference already contains mascot + WorkTrack + tagline. */
 .wt-logo-horizontal .wt-logo-art {
-  width: 178px;
-  height: 124px;
+  width: 300px;
+  height: auto;
+  aspect-ratio: auto;
 }
 
-.wt-clock-arc {
-  fill: none;
-  stroke: #f39a25;
-  stroke-width: 8;
-  stroke-linecap: round;
-}
-
-.wt-clock-arc-small { stroke-width: 6; }
-.wt-clock-cap { stroke-width: 7; }
-
-.wt-clock-tick {
-  fill: none;
-  stroke: #172231;
-  stroke-width: 3.5;
-  stroke-linecap: round;
-}
-
-.wt-clock-check {
-  fill: none;
-  stroke: #172231;
-  stroke-width: 6;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.wt-spark { fill: #f39a25; }
-
-.wt-hair {
-  fill: #24151a;
-  stroke: #120e12;
-  stroke-width: 1.3;
-}
-
-.wt-hair-highlight { fill: #4a2028; }
-.wt-hair-shine { fill: #6b3038; opacity: .78; }
-.wt-fringe { fill: #24151a; }
-
-.wt-face {
-  fill: #ffc39a;
-  stroke: #e89a72;
-  stroke-width: 1.1;
-}
-
-.wt-eye-closed {
-  fill: none;
-  stroke: #16161b;
-  stroke-width: 2.4;
-  stroke-linecap: round;
-}
-
-.wt-smile {
-  fill: none;
-  stroke: #6d2d29;
-  stroke-width: 2;
-  stroke-linecap: round;
-}
-
-.wt-cheek { fill: #f28e82; opacity: .68; }
-
-.wt-shirt {
-  fill: #f39a25;
-  stroke: #c96e13;
-  stroke-width: 1.1;
-}
-
-.wt-collar {
-  fill: none;
-  stroke: #ffd07d;
-  stroke-width: 2.2;
-  stroke-linecap: round;
-  stroke-linejoin: round;
-}
-
-.wt-arm {
-  fill: none;
-  stroke: #ffc39a;
-  stroke-width: 5.5;
-  stroke-linecap: round;
-}
-
-.wt-sleeve-detail {
-  fill: none;
-  stroke: #d87918;
-  stroke-width: 1.8;
-  stroke-linecap: round;
-}
-
-.wt-hand {
-  fill: none;
-  stroke: #ffc39a;
-  stroke-width: 4;
-  stroke-linecap: round;
-}
-
-.wt-laptop {
-  fill: #172131;
-  stroke: #080b10;
-  stroke-width: 2.2;
-}
-
-.wt-screen { fill: #26364f; }
-
-.wt-base {
-  fill: #101820;
-  stroke: #080b10;
-  stroke-width: 1.2;
-}
-
-.wt-base-line {
-  stroke: #f39a25;
-  stroke-width: 2.2;
-  stroke-linecap: round;
-}
-
-.wt-screen-line {
-  stroke: #6da8e8;
-  stroke-width: 1.7;
-  stroke-linecap: round;
-}
-
-.wt-logo-copy {
-  display: inline-flex;
-  flex-direction: column;
-  justify-content: center;
-  min-width: 0;
-}
-
-.wt-logo-wordmark {
-  display: block;
-  font-family: var(--font-display);
-  font-size: 31px;
-  line-height: .95;
-  font-weight: 800;
-  letter-spacing: -.045em;
-  white-space: nowrap;
-}
-
-.wt-logo-wordmark strong {
-  color: #f39a25;
-  font-weight: 800;
-}
-
-.wt-logo-tagline {
-  margin-top: 7px;
-  color: #9aa4b2;
-  font-family: var(--font-display);
-  font-size: 8.5px;
-  font-weight: 600;
-  letter-spacing: .22em;
-  white-space: nowrap;
+/* The supplied icon reference is mascot-only. */
+.wt-logo-icon-only .wt-logo-art {
+  width: 52px;
+  height: auto;
+  aspect-ratio: auto;
 }
 
 /* ---------- Login ---------- */
@@ -269,7 +124,7 @@ h1, h2, h3 { font-family: var(--font-display); }
 }
 
 .wt-login-hero .wt-logo-horizontal {
-  transform: scale(1.08);
+  transform: none;
   transform-origin: center;
 }
 
@@ -329,4 +184,10 @@ h1, h2, h3 { font-family: var(--font-display); }
 .wt-shell-brand .wt-logo-icon-only {
   width: 52px;
   height: 52px;
+}
+
+@media (max-width: 640px) {
+  .wt-logo-horizontal .wt-logo-art {
+    width: min(300px, 78vw);
+  }
 }
