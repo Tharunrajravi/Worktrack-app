@@ -149,7 +149,7 @@ export default function DashboardPage() {
       <section>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
           <div className="section-heading" style={{ marginBottom: 0 }}>Today's work</div>
-          <WorkTrackLogo size={28} showWordmark={false} compact />
+          <WorkTrackLogo size={28} showWordmark={false} />
         </div>
         {dashboardItems.length === 0 ? (
           <EmptyState onCreate={openPlanChooser} />
