@@ -9,7 +9,7 @@ import {
   apiStopSession,
   apiUpdateWorkItem,
 } from '../lib/api';
-import { pauseTimer, resumeTimer, startTimer, stopTimer, getPhase } from '../lib/timer';
+import { pauseTimer, resumeTimer, stopTimer, getPhase } from '../lib/timer';
 import { findOpenSession, sessionsForItem } from '../lib/sessions';
 import type { WorkItem, WorkSession, WorkStatus } from '../types/work';
 
