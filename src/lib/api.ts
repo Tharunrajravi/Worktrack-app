@@ -8,52 +8,49 @@ const API_BASE_URL = (
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
-    headers: {
-      'Content-Type': 'application/json',
-      ...(init?.headers ?? {}),
-    },
+    headers: { 'Content-Type': 'application/json', ...(init?.headers ?? {}) },
   });
 
   const text = await response.text();
-  let data: unknown = undefined;
-
+  let data: unknown;
   if (text) {
-    try {
-      data = JSON.parse(text);
-    } catch {
-      data = text;
-    }
+    try { data = JSON.parse(text); } catch { data = text; }
   }
 
   if (!response.ok) {
-    const message =
-      typeof data === 'object' && data !== null && 'message' in data
-        ? String((data as { message: unknown }).message)
-        : `WorkTrack API request failed (${response.status})`;
+    const message = typeof data === 'object' && data !== null && 'message' in data
+      ? String((data as { message: unknown }).message)
+      : `WorkTrack API request failed (${response.status})`;
     throw new Error(message);
   }
-
   return data as T;
+}
+
+function normalizeWorkItem(item: WorkItem): WorkItem {
+  return { ...item, id: item.id || item.workId };
+}
+
+function normalizeSession(session: WorkSession & { sessionId?: string }): WorkSession {
+  return { ...session, id: session.id || session.sessionId || '' };
 }
 
 export async function apiListWorkItems(): Promise<WorkItem[]> {
   const result = await request<{ items?: WorkItem[] }>('/work-items');
-  return result.items ?? [];
+  return (result.items ?? []).map(normalizeWorkItem);
 }
 
 export async function apiGetWorkItem(workId: string): Promise<WorkItem | undefined> {
   try {
-    return await request<WorkItem>(`/work-items/${encodeURIComponent(workId)}`);
+    const item = await request<WorkItem>(`/work-items/${encodeURIComponent(workId)}`);
+    return normalizeWorkItem(item);
   } catch (error) {
-    if (error instanceof Error && error.message.toLowerCase().includes('not found')) {
-      return undefined;
-    }
+    if (error instanceof Error && error.message.toLowerCase().includes('not found')) return undefined;
     throw error;
   }
 }
 
 export async function apiCreateWorkItem(item: WorkItem): Promise<WorkItem> {
-  return request<WorkItem>('/work-items', {
+  const created = await request<WorkItem>('/work-items', {
     method: 'POST',
     body: JSON.stringify({
       project: item.project,
@@ -72,10 +69,11 @@ export async function apiCreateWorkItem(item: WorkItem): Promise<WorkItem> {
       links: item.links,
     }),
   });
+  return { ...item, ...created, id: created.id || item.id, workId: created.workId || item.workId };
 }
 
 export async function apiUpdateWorkItem(item: WorkItem): Promise<WorkItem> {
-  return request<WorkItem>(`/work-items/${encodeURIComponent(item.workId)}`, {
+  const updated = await request<WorkItem>(`/work-items/${encodeURIComponent(item.workId)}`, {
     method: 'PATCH',
     body: JSON.stringify({
       project: item.project,
@@ -94,38 +92,48 @@ export async function apiUpdateWorkItem(item: WorkItem): Promise<WorkItem> {
       links: item.links,
     }),
   });
+  return { ...item, ...updated, id: updated.id || item.id, workId: updated.workId || item.workId };
 }
 
 export async function apiListWorkSessions(): Promise<WorkSession[]> {
   const items = await apiListWorkItems();
-  return items.flatMap((item) => item.sessions ?? []);
+  const grouped = await Promise.all(
+    items.map(async (item) => {
+      const result = await request<{ sessions?: WorkSession[] }>(
+        `/work-items/${encodeURIComponent(item.workId)}/sessions`,
+      );
+      return (result.sessions ?? []).map(normalizeSession);
+    }),
+  );
+  return grouped.flat();
 }
 
 export async function apiStartSession(workId: string): Promise<WorkSession> {
-  return request<WorkSession>(`/work-items/${encodeURIComponent(workId)}/sessions`, {
-    method: 'POST',
-  });
-}
-
-export async function apiPauseSession(workId: string, sessionId: string): Promise<WorkSession> {
-  return request<WorkSession>(
-    `/work-items/${encodeURIComponent(workId)}/sessions/${encodeURIComponent(sessionId)}/pause`,
+  const result = await request<WorkSession & { session?: WorkSession }>(
+    `/work-items/${encodeURIComponent(workId)}/sessions`,
     { method: 'POST' },
   );
+  return normalizeSession(result.session ?? result);
 }
 
-export async function apiResumeSession(workId: string, sessionId: string): Promise<WorkSession> {
-  return request<WorkSession>(
-    `/work-items/${encodeURIComponent(workId)}/sessions/${encodeURIComponent(sessionId)}/resume`,
+async function sessionAction(workId: string, sessionId: string, action: 'pause' | 'resume' | 'stop'): Promise<WorkSession> {
+  const result = await request<WorkSession & { session?: WorkSession }>(
+    `/work-items/${encodeURIComponent(workId)}/sessions/${encodeURIComponent(sessionId)}/${action}`,
     { method: 'POST' },
   );
+  return normalizeSession(result.session ?? result);
 }
 
-export async function apiStopSession(workId: string, sessionId: string): Promise<WorkSession> {
-  return request<WorkSession>(
-    `/work-items/${encodeURIComponent(workId)}/sessions/${encodeURIComponent(sessionId)}/stop`,
-    { method: 'POST' },
-  );
+export function apiPauseSession(workId: string, sessionId: string): Promise<WorkSession> {
+  return sessionAction(workId, sessionId, 'pause');
+}
+
+export function apiResumeSession(workId: string, sessionId: string): Promise<WorkSession> {
+  return sessionAction(workId, sessionId, 'resume');
+}
+
+export function apiStopSession(workId: string, sessionId: string): Promise<WorkSession> {
+  return sessionAction(workId, sessionId, 'stop');
 }
 
 export interface ExportResponse {
