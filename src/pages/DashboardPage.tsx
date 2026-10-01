@@ -177,7 +177,7 @@ export default function DashboardPage() {
       {planFlow === 'create' && nextWorkId && <WorkPlanForm workId={nextWorkId} date={today} onCancel={() => setPlanFlow('none')} onCreate={handleCreate} />}
       {planFlow === 'continue' && <ContinueWorkList items={items} sessions={sessions} onSelect={handleContinueSelect} onClose={() => setPlanFlow('none')} />}
       {summarySession && <SessionSummary item={summarySession.item} session={summarySession.session} onSave={handleSaveSummary} />}
-      {showExport && <ExportModal items={items} sessions={sessions} defaultDate={today} onClose={() => setShowExport(false)} />}
+      {showExport && <ExportModal defaultDate={today} onClose={() => setShowExport(false)} />}
     </div>
   );
 }
