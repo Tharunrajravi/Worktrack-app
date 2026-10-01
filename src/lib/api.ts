@@ -50,10 +50,7 @@ export async function apiGetWorkItem(workId: string): Promise<WorkItem | undefin
   try {
     const item = await request<WorkItem & { sessions?: WorkSession[] }>(`/work-items/${encodeURIComponent(workId)}`);
     const normalized = normalizeWorkItem(item);
-    return {
-      ...normalized,
-      sessions: undefined,
-    } as WorkItem;
+    return { ...normalized, sessions: undefined } as WorkItem;
   } catch (error) {
     if (error instanceof Error && error.message.toLowerCase().includes('not found')) return undefined;
     throw error;
@@ -74,7 +71,6 @@ export async function apiCreateWorkItem(item: WorkItem): Promise<WorkItem> {
       priority: item.priority,
       technologies: item.technologies,
       ticketId: item.ticketId,
-      incidentId: item.incidentId,
       outcome: item.outcome,
       notes: item.notes,
       links: item.links,
@@ -97,7 +93,6 @@ export async function apiUpdateWorkItem(item: WorkItem): Promise<WorkItem> {
       priority: item.priority,
       technologies: item.technologies,
       ticketId: item.ticketId,
-      incidentId: item.incidentId,
       outcome: item.outcome,
       notes: item.notes,
       links: item.links,
@@ -118,7 +113,7 @@ export async function apiStartSession(workId: string): Promise<WorkSession> {
     `/work-items/${encodeURIComponent(workId)}/sessions`,
     { method: 'POST' },
   );
-  return normalizeSession(result.session ?? result);
+  return normalizeSession(result.session ?? result, workId);
 }
 
 async function sessionAction(workId: string, sessionId: string, action: 'pause' | 'resume' | 'stop'): Promise<WorkSession> {
@@ -126,7 +121,7 @@ async function sessionAction(workId: string, sessionId: string, action: 'pause' 
     `/work-items/${encodeURIComponent(workId)}/sessions/${encodeURIComponent(sessionId)}/${action}`,
     { method: 'POST' },
   );
-  return normalizeSession(result.session ?? result);
+  return normalizeSession(result.session ?? result, workId);
 }
 
 export function apiPauseSession(workId: string, sessionId: string): Promise<WorkSession> {
