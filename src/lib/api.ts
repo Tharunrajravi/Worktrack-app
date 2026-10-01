@@ -1,4 +1,4 @@
-import type { WorkItem, WorkSession } from '../types/work';
+import type { WorkItem, WorkSession, TimerInterval } from '../types/work';
 
 const API_BASE_URL = (
   import.meta.env.VITE_WORKTRACK_API_URL ||
@@ -30,9 +30,16 @@ function normalizeWorkItem(item: WorkItem): WorkItem {
   return { ...item, id: item.id || item.workId };
 }
 
-function normalizeSession(session: WorkSession & { sessionId?: string; workId?: string }, workItemId?: string): WorkSession {
+function normalizeSession(
+  session: WorkSession & { sessionId?: string; workId?: string; intervals?: TimerInterval[] },
+  workItemId?: string,
+): WorkSession {
   return {
     ...session,
+    // Cloud/API records created before the timer-session shape was fully
+    // normalized may not contain intervals. Always give the timer state the
+    // shape it expects so getPhase()/computeActiveMs() cannot crash the app.
+    intervals: Array.isArray(session.intervals) ? session.intervals : [],
     id: session.id || session.sessionId || '',
     workItemId: workItemId || session.workItemId || session.workId || '',
   };
