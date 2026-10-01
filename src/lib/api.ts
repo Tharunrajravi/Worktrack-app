@@ -30,19 +30,30 @@ function normalizeWorkItem(item: WorkItem): WorkItem {
   return { ...item, id: item.id || item.workId };
 }
 
-function normalizeSession(session: WorkSession & { sessionId?: string }): WorkSession {
-  return { ...session, id: session.id || session.sessionId || '' };
+function normalizeSession(session: WorkSession & { sessionId?: string; workId?: string }, workItemId?: string): WorkSession {
+  return {
+    ...session,
+    id: session.id || session.sessionId || '',
+    workItemId: workItemId || session.workItemId || session.workId || '',
+  };
 }
 
 export async function apiListWorkItems(): Promise<WorkItem[]> {
   const result = await request<{ items?: WorkItem[] }>('/work-items');
-  return (result.items ?? []).map(normalizeWorkItem);
+  return (result.items ?? []).map((item) => ({
+    ...normalizeWorkItem(item),
+    sessions: undefined,
+  } as WorkItem));
 }
 
 export async function apiGetWorkItem(workId: string): Promise<WorkItem | undefined> {
   try {
-    const item = await request<WorkItem>(`/work-items/${encodeURIComponent(workId)}`);
-    return normalizeWorkItem(item);
+    const item = await request<WorkItem & { sessions?: WorkSession[] }>(`/work-items/${encodeURIComponent(workId)}`);
+    const normalized = normalizeWorkItem(item);
+    return {
+      ...normalized,
+      sessions: undefined,
+    } as WorkItem;
   } catch (error) {
     if (error instanceof Error && error.message.toLowerCase().includes('not found')) return undefined;
     throw error;
@@ -96,16 +107,10 @@ export async function apiUpdateWorkItem(item: WorkItem): Promise<WorkItem> {
 }
 
 export async function apiListWorkSessions(): Promise<WorkSession[]> {
-  const items = await apiListWorkItems();
-  const grouped = await Promise.all(
-    items.map(async (item) => {
-      const result = await request<{ sessions?: WorkSession[] }>(
-        `/work-items/${encodeURIComponent(item.workId)}/sessions`,
-      );
-      return (result.sessions ?? []).map(normalizeSession);
-    }),
+  const result = await request<{ items?: Array<WorkItem & { sessions?: WorkSession[] }> }>('/work-items');
+  return (result.items ?? []).flatMap((item) =>
+    (item.sessions ?? []).map((session) => normalizeSession(session, item.id || item.workId)),
   );
-  return grouped.flat();
 }
 
 export async function apiStartSession(workId: string): Promise<WorkSession> {
