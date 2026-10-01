@@ -24,22 +24,26 @@ export function useWorkTrackData() {
         setItems(allItems);
         setSessions(allSessions);
       })
+      .catch((error) => {
+        console.error('Failed to load WorkTrack cloud data:', error);
+      })
       .finally(() => setLoading(false));
   }, []);
 
   const persistItem = async (item: WorkItem) => {
     const updated = { ...item, updatedAt: new Date().toISOString() };
     const saved = await apiUpdateWorkItem(updated);
+    const normalized = { ...saved, id: saved.id || item.id, workId: saved.workId || item.workId };
     setItems((prev) => {
       const idx = prev.findIndex((i) => i.id === item.id || i.workId === item.workId);
       if (idx >= 0) {
         const next = [...prev];
-        next[idx] = { ...saved, id: saved.id || item.id, workId: saved.workId || item.workId };
+        next[idx] = normalized;
         return next;
       }
-      return [...prev, { ...saved, id: saved.id || item.id, workId: saved.workId || item.workId }];
+      return [...prev, normalized];
     });
-    return { ...saved, id: saved.id || item.id, workId: saved.workId || item.workId };
+    return normalized;
   };
 
   const persistSession = async (session: WorkSession) => {
@@ -56,25 +60,22 @@ export function useWorkTrackData() {
     } else {
       const wasRunning = existing.intervals.some((interval) => !interval.end);
       const isRunning = session.intervals.some((interval) => !interval.end);
-      if (wasRunning && !isRunning) {
-        saved = await apiPauseSession(workItem.workId, existing.id);
-      } else if (!wasRunning && isRunning) {
-        saved = await apiResumeSession(workItem.workId, existing.id);
-      } else {
-        saved = existing;
-      }
+      if (wasRunning && !isRunning) saved = await apiPauseSession(workItem.workId, existing.id);
+      else if (!wasRunning && isRunning) saved = await apiResumeSession(workItem.workId, existing.id);
+      else saved = existing;
     }
 
+    const normalized = { ...saved, workItemId: workItem.id };
     setSessions((prev) => {
-      const idx = prev.findIndex((s) => s.id === saved.id);
+      const idx = prev.findIndex((s) => s.id === normalized.id);
       if (idx >= 0) {
         const next = [...prev];
-        next[idx] = saved;
+        next[idx] = normalized;
         return next;
       }
-      return [...prev, saved];
+      return [...prev, normalized];
     });
-    return saved;
+    return normalized;
   };
 
   const openSession = findOpenSession(sessions);
@@ -90,11 +91,13 @@ export function useWorkTrackData() {
   const startSession = async (item: WorkItem) => {
     if (findOpenSession(sessions)) return;
     const saved = await apiStartSession(item.workId);
-    setSessions((prev) => [...prev, saved]);
+    const normalized = { ...saved, workItemId: item.id };
+    setSessions((prev) => [...prev, normalized]);
 
     if (item.status === 'Planned' || item.status === 'Blocked') {
       const updated = await apiUpdateWorkItem({ ...item, status: 'In Progress', updatedAt: new Date().toISOString() });
-      setItems((prev) => prev.map((i) => (i.id === item.id || i.workId === item.workId ? { ...updated, id: updated.id || item.id, workId: updated.workId || item.workId } : i)));
+      const normalizedItem = { ...updated, id: updated.id || item.id, workId: updated.workId || item.workId };
+      setItems((prev) => prev.map((i) => (i.id === item.id || i.workId === item.workId ? normalizedItem : i)));
     }
   };
 
