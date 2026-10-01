@@ -25,9 +25,11 @@ export async function getWorkIdsForDate(date: string): Promise<string[]> {
 }
 
 export async function saveWorkItem(item: WorkItem): Promise<WorkItem> {
-  return item.workId
-    ? apiUpdateWorkItem(item)
-    : apiCreateWorkItem(item);
+  return apiUpdateWorkItem(item);
+}
+
+export async function createWorkItem(item: WorkItem): Promise<WorkItem> {
+  return apiCreateWorkItem(item);
 }
 
 export async function deleteWorkItem(_id: string): Promise<void> {
@@ -39,31 +41,18 @@ export async function listWorkSessions(): Promise<WorkSession[]> {
 }
 
 export async function saveWorkSession(session: WorkSession): Promise<WorkSession> {
-  const workId = session.workItemId || session.workId;
-  if (!workId) throw new Error('A Work Item ID is required to save a session.');
+  const workItem = await apiGetWorkItem(session.workItemId);
+  if (!workItem) throw new Error('Work Item not found.');
 
-  if (!session.id) {
-    return apiStartSession(workId);
-  }
+  const existing = (await apiListWorkSessions()).find((item) => item.id === session.id);
+  if (!existing) return apiStartSession(workItem.workId);
 
-  const current = await apiGetWorkItem(workId);
-  const existing = current?.sessions?.find((item) => item.id === session.id);
-  if (!existing) return apiStartSession(workId);
+  const wasRunning = existing.intervals.some((interval) => !interval.end);
+  const isRunning = session.intervals.some((interval) => !interval.end);
 
-  if (session.stoppedAt && !existing.stoppedAt) {
-    return apiStopSession(workId, session.id);
-  }
+  if (session.stoppedAt && !existing.stoppedAt) return apiStopSession(workItem.workId, existing.id);
+  if (wasRunning && !isRunning) return apiPauseSession(workItem.workId, existing.id);
+  if (!wasRunning && isRunning) return apiResumeSession(workItem.workId, existing.id);
 
-  const existingRunning = existing.intervals?.some((interval) => !interval.end);
-  const requestedRunning = session.intervals?.some((interval) => !interval.end);
-
-  if (existingRunning && !requestedRunning) {
-    return apiPauseSession(workId, session.id);
-  }
-
-  if (!existingRunning && requestedRunning) {
-    return apiResumeSession(workId, session.id);
-  }
-
-  return session;
+  return existing;
 }
