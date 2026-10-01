@@ -30,18 +30,72 @@ function normalizeWorkItem(item: WorkItem): WorkItem {
   return { ...item, id: item.id || item.workId };
 }
 
-function normalizeSession(
-  session: WorkSession & { sessionId?: string; workId?: string; intervals?: TimerInterval[] },
-  workItemId?: string,
-): WorkSession {
+type CloudSession = WorkSession & {
+  sessionId?: string;
+  workId?: string;
+  intervals?: TimerInterval[];
+  status?: string;
+  startedAt?: string;
+  activeStartedAt?: string;
+  activeDuration?: number;
+  endedAt?: string | null;
+};
+
+function isoMinusMs(iso: string, durationMs: number): string {
+  const time = new Date(iso).getTime();
+  if (!Number.isFinite(time)) return iso;
+  return new Date(time - Math.max(0, durationMs)).toISOString();
+}
+
+function normalizeSession(session: CloudSession, workItemId?: string): WorkSession {
+  // The Lambda stores timer state as:
+  //   startedAt + activeStartedAt + activeDuration + status + endedAt
+  // while the React timer engine consumes:
+  //   intervals[] + firstStartedAt + stoppedAt.
+  // Convert the cloud representation here so the rest of the app can keep
+  // using the existing timer/session implementation unchanged.
+  let intervals: TimerInterval[];
+
+  if (Array.isArray(session.intervals)) {
+    intervals = session.intervals;
+  } else {
+    const durationMs = Number(session.activeDuration ?? 0) || 0;
+    const status = session.status;
+
+    if (status === 'Active' && session.activeStartedAt) {
+      intervals = [];
+
+      // activeDuration is time accumulated before the currently-running
+      // interval. Represent that accumulated time as a closed interval so
+      // totals remain correct after a refresh/resume.
+      if (durationMs > 0) {
+        intervals.push({
+          start: isoMinusMs(session.activeStartedAt, durationMs),
+          end: session.activeStartedAt,
+        });
+      }
+
+      intervals.push({ start: session.activeStartedAt });
+    } else if (status === 'Paused') {
+      // The backend stores only the aggregate active duration for a paused
+      // session. We preserve that exact duration as one closed interval.
+      const end = session.updatedAt || session.startedAt || new Date().toISOString();
+      intervals = [{ start: isoMinusMs(end, durationMs), end }];
+    } else if (status === 'Ended' || session.endedAt) {
+      const end = session.endedAt || session.updatedAt || session.startedAt || new Date().toISOString();
+      intervals = [{ start: isoMinusMs(end, durationMs), end }];
+    } else {
+      intervals = [];
+    }
+  }
+
   return {
     ...session,
-    // Cloud/API records created before the timer-session shape was fully
-    // normalized may not contain intervals. Always give the timer state the
-    // shape it expects so getPhase()/computeActiveMs() cannot crash the app.
-    intervals: Array.isArray(session.intervals) ? session.intervals : [],
+    intervals,
     id: session.id || session.sessionId || '',
     workItemId: workItemId || session.workItemId || session.workId || '',
+    firstStartedAt: session.firstStartedAt || session.startedAt,
+    stoppedAt: session.stoppedAt || (session.status === 'Ended' ? session.endedAt || undefined : undefined),
   };
 }
 
@@ -109,14 +163,31 @@ export async function apiUpdateWorkItem(item: WorkItem): Promise<WorkItem> {
 }
 
 export async function apiListWorkSessions(): Promise<WorkSession[]> {
-  const result = await request<{ items?: Array<WorkItem & { sessions?: WorkSession[] }> }>('/work-items');
-  return (result.items ?? []).flatMap((item) =>
-    (item.sessions ?? []).map((session) => normalizeSession(session, item.id || item.workId)),
+  // GET /work-items returns only WorkItem records. Sessions are separate
+  // DynamoDB entities, so fetch the existing session list for each item.
+  const result = await request<{ items?: WorkItem[] }>('/work-items');
+  const items = result.items ?? [];
+
+  const sessionLists = await Promise.all(
+    items.map(async (item) => {
+      const workId = item.workId;
+      if (!workId) return [] as WorkSession[];
+
+      const sessionResult = await request<{ sessions?: CloudSession[] }>(
+        `/work-items/${encodeURIComponent(workId)}/sessions`,
+      );
+
+      return (sessionResult.sessions ?? []).map((session) =>
+        normalizeSession(session, item.id || item.workId),
+      );
+    }),
   );
+
+  return sessionLists.flat();
 }
 
 export async function apiStartSession(workId: string): Promise<WorkSession> {
-  const result = await request<WorkSession & { session?: WorkSession }>(
+  const result = await request<CloudSession & { session?: CloudSession }>(
     `/work-items/${encodeURIComponent(workId)}/sessions`,
     { method: 'POST' },
   );
@@ -124,7 +195,7 @@ export async function apiStartSession(workId: string): Promise<WorkSession> {
 }
 
 async function sessionAction(workId: string, sessionId: string, action: 'pause' | 'resume' | 'stop'): Promise<WorkSession> {
-  const result = await request<WorkSession & { session?: WorkSession }>(
+  const result = await request<CloudSession & { session?: CloudSession }>(
     `/work-items/${encodeURIComponent(workId)}/sessions/${encodeURIComponent(sessionId)}/${action}`,
     { method: 'POST' },
   );
